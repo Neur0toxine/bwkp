@@ -12,8 +12,8 @@ jobs:
   go:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1, components: "rustfmt, clippy"}
@@ -24,7 +24,7 @@ jobs:
   rust:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1, components: "rustfmt, clippy"}
       - uses: Swatinem/rust-cache@v2
@@ -41,8 +41,8 @@ jobs:
           - {target: armv7, mage-target: "android:armv7"}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - run: go tool mage ${{ matrix.mage-target }}
       - run: file dist/bwkp-android-${{ matrix.target }}
@@ -54,8 +54,8 @@ jobs:
         runner: [macos-15-intel, macos-14]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1}
@@ -108,8 +108,8 @@ jobs:
               mingw-w64-clang-aarch64-qrencode mingw-w64-clang-aarch64-zlib
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1, targets: "${{ matrix.rust-target }}"}
@@ -138,10 +138,10 @@ jobs:
   e2e:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: {node-version: 24}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1}

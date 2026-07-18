@@ -20,8 +20,8 @@ jobs:
           - {runner: ubuntu-24.04, target: android-armv7, binary: bwkp-android-armv7, mage-target: "android:armv7", dependencies: android}
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1}
@@ -92,8 +92,8 @@ jobs:
               mingw-w64-clang-aarch64-qrencode mingw-w64-clang-aarch64-zlib
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1, targets: "${{ matrix.rust-target }}"}
@@ -131,7 +131,7 @@ jobs:
     needs: [build, build-windows]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: {ref: master}
       - uses: robinraju/release-downloader@v1
         with: {tag: "${{ github.ref_name }}", fileName: "bwkp_*.tar.gz"}
