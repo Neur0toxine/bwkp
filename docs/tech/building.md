@@ -54,24 +54,25 @@ export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix bota
 Windows releases use MSYS2's MINGW32, MINGW64, and CLANGARM64 environments for
 32-bit x86, x86-64, and ARM64 respectively. Install the matching prefixed
 toolchain, CMake, Ninja, Qt 5, Botan, Argon2, minizip, QRencode, and zlib
-packages, then set `GOARCH` and `CARGO_BUILD_TARGET` as shown in the release
-workflow before running `go tool mage build`. MSYS2 has removed several 32-bit
+packages, then set `GOARCH`, `CC`, `CXX`, and `CARGO_BUILD_TARGET` as shown in
+the release workflow before running `go tool mage build`. MSYS2 has removed several 32-bit
 packages from its active index, so x86 builds must first run
 `build/install-msys2-x86-dependencies.sh` to install the pinned archived
-dependency set used by CI and releases.
+dependency set, including the Qt-compatible GCC toolchain, used by CI and
+releases.
 
 Run Windows builds from the matching MSYS2 shell. The architecture settings are:
 
-| MSYS2 environment | `GOARCH` | `CARGO_BUILD_TARGET` |
-| --- | --- | --- |
-| `MINGW32` | `386` | `i686-pc-windows-gnu` |
-| `MINGW64` | `amd64` | `x86_64-pc-windows-gnu` |
-| `CLANGARM64` | `arm64` | `aarch64-pc-windows-gnullvm` |
+| MSYS2 environment | `GOARCH` | `CC` / `CXX` | `CARGO_BUILD_TARGET` |
+| --- | --- | --- | --- |
+| `MINGW32` | `386` | `gcc` / `g++` | `i686-pc-windows-gnu` |
+| `MINGW64` | `amd64` | `gcc` / `g++` | `x86_64-pc-windows-gnu` |
+| `CLANGARM64` | `arm64` | `clang` / `clang++` | `aarch64-pc-windows-gnullvm` |
 
 For example, an x86-64 shell builds with:
 
 ```text
-GOOS=windows GOARCH=amd64 \
+GOOS=windows GOARCH=amd64 CC=gcc CXX=g++ \
   CARGO_BUILD_TARGET=x86_64-pc-windows-gnu go tool mage build
 ```
 

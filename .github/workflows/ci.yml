@@ -78,6 +78,8 @@ jobs:
             goarch: "386"
             rust-target: i686-pc-windows-gnu
             msystem: MINGW32
+            cc: gcc
+            cxx: g++
             archived-x86-dependencies: true
             packages: >-
               mingw-w64-i686-toolchain mingw-w64-i686-cmake mingw-w64-i686-ninja
@@ -86,6 +88,8 @@ jobs:
             goarch: amd64
             rust-target: x86_64-pc-windows-gnu
             msystem: MINGW64
+            cc: gcc
+            cxx: g++
             packages: >-
               mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
               mingw-w64-x86_64-qt5-base mingw-w64-x86_64-qt5-tools mingw-w64-x86_64-qt5-svg
@@ -95,6 +99,8 @@ jobs:
             goarch: arm64
             rust-target: aarch64-pc-windows-gnullvm
             msystem: CLANGARM64
+            cc: clang
+            cxx: clang++
             packages: >-
               mingw-w64-clang-aarch64-toolchain mingw-w64-clang-aarch64-cmake mingw-w64-clang-aarch64-ninja
               mingw-w64-clang-aarch64-qt5-base mingw-w64-clang-aarch64-qt5-tools mingw-w64-clang-aarch64-qt5-svg
@@ -120,6 +126,8 @@ jobs:
         env:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
           CARGO_BUILD_TARGET: ${{ matrix.rust-target }}
           BWKP_UPX: "0"
         run: |

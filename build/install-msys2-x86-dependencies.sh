@@ -6,6 +6,8 @@ set -euo pipefail
 # dependencies between the archived packages.
 repository=https://repo.msys2.org/mingw/mingw32
 pacman --noconfirm -U \
+  "$repository/mingw-w64-i686-gcc-libs-14.2.0-2-any.pkg.tar.zst" \
+  "$repository/mingw-w64-i686-gcc-14.2.0-2-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-dbus-1.16.2-3-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-double-conversion-3.3.1-1-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-icu-76.1-1-any.pkg.tar.zst" \
