@@ -28,6 +28,8 @@ func New(stdout, stderr io.Writer) *CLI { return &CLI{stdout: stdout, stderr: st
 
 func (c *CLI) Run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
+		c.version()
+		_, _ = fmt.Fprintln(c.stdout)
 		c.usage()
 		return errors.New("a command is required")
 	}
@@ -37,11 +39,8 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 	case "import":
 		return c.importDatabase(ctx, args[1:])
 	case "version":
-		_, err := fmt.Fprintf(c.stdout,
-			"bwkp %s (%s, %s, %s/%s)\nKeePassXC: %s\nBitwarden SDK: %s\n",
-			buildinfo.Version, buildinfo.Commit, buildinfo.Date, runtime.GOOS, runtime.GOARCH,
-			native.KeePassXCVersion(), native.BitwardenSDKVersion())
-		return err
+		c.version()
+		return nil
 	case "help", "-h", "--help":
 		c.usage()
 		return nil
@@ -281,8 +280,23 @@ func readOptional(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+func (c *CLI) version() {
+	_, _ = fmt.Fprintf(c.stdout,
+			"bwkp %s (%s, %s, %s/%s)\nDependencies:\n - KeePassXC: %s\n - Bitwarden SDK: %s\n",
+			buildinfo.Version, buildinfo.Commit, buildinfo.Date, runtime.GOOS, runtime.GOARCH,
+			native.KeePassXCVersion(), native.BitwardenSDKVersion())
+}
+
 func (c *CLI) usage() {
-	_, _ = fmt.Fprintln(c.stderr, "Usage:\n  bwkp export --server URL --email EMAIL --output FILE [options]\n  bwkp export --region us|eu --email EMAIL --output FILE [options]\n  bwkp import --server URL --email EMAIL --input FILE [options]\n  bwkp import --region us|eu --email EMAIL --input FILE [options]\n  bwkp version\n\nRun 'bwkp export --help' or 'bwkp import --help' for command options and examples.")
+	_, _ = fmt.Fprintln(c.stderr, `Usage:
+  bwkp export --server URL --email EMAIL --output FILE [options]
+  bwkp export --region us|eu --email EMAIL --output FILE [options]
+  bwkp import --server URL --email EMAIL --input FILE [options]
+  bwkp import --region us|eu --email EMAIL --input FILE [options]
+  bwkp version
+
+Run 'bwkp export --help' or 'bwkp import --help' for command options and examples.
+`)
 }
 
 func (c *CLI) exportUsage(flags *flag.FlagSet) {
