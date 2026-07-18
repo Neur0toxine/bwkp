@@ -15,10 +15,101 @@ The native compatibility boundary is deliberately narrow:
 
 Run `bwkp version` to see both upstream versions compiled into a binary.
 
+## Installation
+
+Release binaries dynamically use Qt, Botan, Argon2, minizip, QRencode, zlib,
+and the platform C/C++ runtime. Homebrew installs these libraries automatically;
+mise and manual Linux or Android installs require the matching runtime packages
+described below.
+
+### Windows
+
+Native Windows artifacts are not available yet, so there is no Chocolatey
+package. Install [WSL2](https://learn.microsoft.com/windows/wsl/install) from an
+administrator PowerShell prompt, then install the Linux release inside Ubuntu:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+After Ubuntu starts, follow the Linux or manual instructions below. Windows
+drives are available below `/mnt`, for example `/mnt/c/Users/Alice`. A native
+Chocolatey package will only be added after the KeePassXC native binding and
+its runtime dependencies have a verified Windows build.
+
+### Linux
+
+The recommended installer is [mise](https://mise.jdx.dev/). Its GitHub backend
+selects the matching Linux architecture directly from GitHub Releases and adds
+`bwkp` to the managed `PATH`:
+
+```text
+mise use --global github:Neur0toxine/bwkp
+bwkp version
+```
+
+Install the runtime library family through the distribution package manager
+first. Debian and Ubuntu builds need the Qt 5 Core, Concurrent, DBus, GUI,
+Network, SVG, and Widgets libraries plus Botan 2, Argon2, minizip, QRencode,
+zlib, and the C++ runtime. [asdf](https://asdf-vm.com/) can also manage release
+tools, but it requires a tool-specific plugin; this project does not publish an
+asdf plugin, so mise is the direct, plugin-free option.
+
+### macOS
+
+Homebrew selects a native Intel or Apple-silicon archive and installs its
+runtime dependencies:
+
+```text
+brew tap Neur0toxine/bwkp https://github.com/Neur0toxine/bwkp
+brew install --cask Neur0toxine/bwkp/bwkp
+bwkp version
+```
+
+Intel Macs use the legacy `macos-amd64` build. M-series Macs use the native
+`macos-arm64` build without Rosetta.
+
+### Android
+
+Android needs the dedicated `android-arm64` or `android-armv7` Termux binary;
+the Linux ARM archives use a different C library and will not work. Install a
+current Termux release and its runtime packages, then use the manual installer
+below. See the [Termux instructions](docs/user/usage.md#android-and-termux) for
+the required `pkg` commands.
+
+### iOS
+
+iOS is untested and has no native binary. Advanced users may experiment with
+Alpine Linux in [iSH](https://ish.app/) or a 64-bit Linux virtual machine in
+[UTM](https://mac.getutm.app/), but the published glibc binaries are not native
+Alpine packages and iSH commonly emulates an unsupported 32-bit architecture.
+UTM running a supported x86-64 or ARM64 Linux guest is the more plausible path.
+
+### Manual installation
+
+The installer defaults to the latest release, detects Linux, macOS, or Termux,
+and verifies the selected archive against the release `SHA256SUMS`. It installs
+to `./bin` unless `-b` is provided:
+
+```text
+curl -sSfL https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh | bash
+wget -O- -q https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh | bash
+```
+
+Choose another directory or an exact release by passing installer arguments:
+
+```text
+curl -sSfL https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh |
+  bash -s -- -b "$HOME/.local/bin" v1.2.3
+```
+
+Alternatively, download the archive for the operating system and architecture
+from [GitHub Releases](https://github.com/Neur0toxine/bwkp/releases), verify it
+with `SHA256SUMS`, extract it, and place `bwkp` in a directory on `PATH`.
+
 ## Usage
 
-Download a Linux, macOS, or Android archive for your architecture from GitHub
-Releases, unpack it, then run either:
+After installation, run either:
 
 ```text
 bwkp export --region us --email alice@example.com --output vault.kdbx
