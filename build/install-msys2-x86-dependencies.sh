@@ -40,6 +40,20 @@ bsdtar --extract --file "$gcc_packages/gcc.pkg.tar.zst" --directory "$gcc_toolch
 # Supply the target sysroot installed by the current MINGW32 toolchain while
 # retaining the archived compiler binaries and C++ runtime.
 cp -a /mingw32/i686-w64-mingw32 "$gcc_toolchain/mingw32/"
+cp -a /mingw32/include "$gcc_toolchain/mingw32/"
+
+cat > "$gcc_packages/smoke.cpp" <<'EOF'
+#include <iostream>
+
+int main()
+{
+    std::cout << "ok";
+}
+EOF
+"$gcc_toolchain/mingw32/bin/g++.exe" \
+  "$gcc_packages/smoke.cpp" \
+  -o "$gcc_packages/smoke.exe"
+PATH="$gcc_toolchain/mingw32/bin:$PATH" "$gcc_packages/smoke.exe" >/dev/null
 
 install -d "$qt_tools"
 install -m 0755 /mingw32/bin/{moc,qmake,rcc,uic}.exe "$qt_tools"
