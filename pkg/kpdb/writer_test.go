@@ -3,7 +3,7 @@ package kpdb_test
 import (
 	"testing"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/kpdb"
+	"github.com/Neur0toxine/bwkp/pkg/kpdb"
 )
 
 func TestOptionsValidation(t *testing.T) {

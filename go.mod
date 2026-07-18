@@ -1,4 +1,4 @@
-module github.com/Neur0toxine/bitwarden-keepass-exporter
+module github.com/Neur0toxine/bwkp
 
 go 1.26.5
 

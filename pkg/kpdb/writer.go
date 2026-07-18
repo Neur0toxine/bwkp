@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/kp"
+	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
 )
 
 type Cipher string

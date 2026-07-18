@@ -9,8 +9,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/native"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/bw"
+	"github.com/Neur0toxine/bwkp/internal/native"
+	"github.com/Neur0toxine/bwkp/pkg/dto/bw"
 )
 
 type NativeClient struct{}

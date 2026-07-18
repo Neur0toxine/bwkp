@@ -3,7 +3,7 @@ package bwapi_test
 import (
 	"testing"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/bwapi"
+	"github.com/Neur0toxine/bwkp/pkg/bwapi"
 )
 
 func TestResolveEndpoints(t *testing.T) {

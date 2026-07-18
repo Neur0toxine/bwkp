@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/cli"
+	"github.com/Neur0toxine/bwkp/internal/cli"
 )
 
 func main() {

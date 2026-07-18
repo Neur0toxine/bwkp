@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/convert"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/bw"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/kp"
+	"github.com/Neur0toxine/bwkp/pkg/convert"
+	"github.com/Neur0toxine/bwkp/pkg/dto/bw"
+	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
 )
 
 func TestConvertLoginPreservesFunctionalityAndSource(t *testing.T) {

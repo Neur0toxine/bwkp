@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/atomicfile"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/native"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/kp"
+	"github.com/Neur0toxine/bwkp/internal/atomicfile"
+	"github.com/Neur0toxine/bwkp/internal/native"
+	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
 )
 
 type NativeWriter struct{}

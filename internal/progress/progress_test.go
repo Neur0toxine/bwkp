@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/app"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/progress"
+	"github.com/Neur0toxine/bwkp/internal/app"
+	"github.com/Neur0toxine/bwkp/internal/progress"
 )
 
 func TestRendererUsesTwoStageBlockTheme(t *testing.T) {

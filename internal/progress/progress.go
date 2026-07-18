@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/app"
+	"github.com/Neur0toxine/bwkp/internal/app"
 	"github.com/k0kubun/go-ansi"
 	progressbar "github.com/schollz/progressbar/v3"
 	"golang.org/x/term"

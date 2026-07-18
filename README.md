@@ -34,6 +34,7 @@ The supported build entry point is Mage:
 
 ```text
 go tool mage build
+go tool mage image
 go tool mage test:unit
 go tool mage test:native
 go tool mage test:e2e
@@ -44,6 +45,12 @@ go tool mage lint
 as a static C++ archive before linking `bwkp`. The host needs Go 1.26.5, Rust
 1.93.1, CMake, a C++20 compiler, and KeePassXC 2.7.12's Qt/Botan/Argon2 build
 dependencies. The Dockerfile provides a contained build environment.
+
+`go tool mage image` builds the runtime image as `bwkp:dev` by default. It uses
+Podman when available; otherwise it uses Docker Buildx with `--load`, falling
+back to classic `docker build` when Buildx is unavailable. Set `BWKP_IMAGE` and
+`VERSION` to select another image reference and version. The target fails when
+neither Podman nor Docker is installed.
 
 Technical design, mappings, security properties, and testing are documented
 under [docs/tech](docs/tech/architecture.md).

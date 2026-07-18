@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -34,9 +35,48 @@ func Build() error {
 	if runtime.GOOS == "windows" {
 		output += ".exe"
 	}
-	ldflags := fmt.Sprintf("-s -w -X github.com/Neur0toxine/bitwarden-keepass-exporter/internal/buildinfo.Version=%s -X github.com/Neur0toxine/bitwarden-keepass-exporter/internal/buildinfo.Commit=%s -X github.com/Neur0toxine/bitwarden-keepass-exporter/internal/buildinfo.Date=%s", version, commit, date)
+	ldflags := fmt.Sprintf("-s -w -X github.com/Neur0toxine/bwkp/internal/buildinfo.Version=%s -X github.com/Neur0toxine/bwkp/internal/buildinfo.Commit=%s -X github.com/Neur0toxine/bwkp/internal/buildinfo.Date=%s", version, commit, date)
 	// CGo does not include external archive mtimes in Go's build cache key.
 	return sh.RunWithV(map[string]string{"CGO_ENABLED": "1"}, "go", "build", "-a", "-trimpath", "-tags", "native", "-ldflags", ldflags, "-o", output, "./cmd/bwkp")
+}
+
+// Image builds the runtime container image, preferring Podman over Docker.
+func Image() error {
+	engine, err := containerEngine()
+	if err != nil {
+		return err
+	}
+	version := envOr("VERSION", "dev")
+	image := envOr("BWKP_IMAGE", "bwkp:"+version)
+	arguments := []string{
+		"--target", "runtime",
+		"--tag", image,
+		"--build-arg", "VERSION=" + version,
+		"--build-arg", "COMMIT=" + envOr("COMMIT", "unknown"),
+		"--build-arg", "BUILD_DATE=" + envOr("BUILD_DATE", "unknown"),
+		".",
+	}
+	if engine == "podman" {
+		return sh.RunV(engine, append([]string{"build"}, arguments...)...)
+	}
+	if dockerBuildxAvailable() {
+		return sh.RunV(engine, append([]string{"buildx", "build", "--load"}, arguments...)...)
+	}
+	return sh.RunV(engine, append([]string{"build"}, arguments...)...)
+}
+
+func containerEngine() (string, error) {
+	if _, err := exec.LookPath("podman"); err == nil {
+		return "podman", nil
+	}
+	if _, err := exec.LookPath("docker"); err == nil {
+		return "docker", nil
+	}
+	return "", fmt.Errorf("container image build requires podman or docker in PATH")
+}
+
+func dockerBuildxAvailable() bool {
+	return exec.Command("docker", "buildx", "version").Run() == nil
 }
 
 func buildKeePassXC() error {

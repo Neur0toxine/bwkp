@@ -11,15 +11,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/app"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/buildinfo"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/native"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/progress"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/prompt"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/security"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/bwapi"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/convert"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/kpdb"
+	"github.com/Neur0toxine/bwkp/internal/app"
+	"github.com/Neur0toxine/bwkp/internal/buildinfo"
+	"github.com/Neur0toxine/bwkp/internal/native"
+	"github.com/Neur0toxine/bwkp/internal/progress"
+	"github.com/Neur0toxine/bwkp/internal/prompt"
+	"github.com/Neur0toxine/bwkp/internal/security"
+	"github.com/Neur0toxine/bwkp/pkg/bwapi"
+	"github.com/Neur0toxine/bwkp/pkg/convert"
+	"github.com/Neur0toxine/bwkp/pkg/kpdb"
 )
 
 type CLI struct{ stdout, stderr io.Writer }

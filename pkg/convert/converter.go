@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/bw"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/kp"
+	"github.com/Neur0toxine/bwkp/pkg/dto/bw"
+	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
 )
 
 var ErrUnsupportedItem = errors.New("unsupported Bitwarden item")

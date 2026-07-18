@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/native"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/kp"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/kpdb"
+	"github.com/Neur0toxine/bwkp/internal/native"
+	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
+	"github.com/Neur0toxine/bwkp/pkg/kpdb"
 )
 
 func TestNativeWriterProducesKeePassXCCompatibleDatabase(t *testing.T) {

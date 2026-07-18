@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/bw"
+	"github.com/Neur0toxine/bwkp/pkg/dto/bw"
 )
 
 type Region string

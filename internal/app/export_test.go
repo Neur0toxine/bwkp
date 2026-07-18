@@ -7,11 +7,11 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/bwapi"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/convert"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/bw"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/dto/kp"
-	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/kpdb"
+	"github.com/Neur0toxine/bwkp/pkg/bwapi"
+	"github.com/Neur0toxine/bwkp/pkg/convert"
+	"github.com/Neur0toxine/bwkp/pkg/dto/bw"
+	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
+	"github.com/Neur0toxine/bwkp/pkg/kpdb"
 )
 
 func TestExportRetriesTOTPDownloadsAttachmentsAndWrites(t *testing.T) {
