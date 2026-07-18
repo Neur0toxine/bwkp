@@ -58,15 +58,17 @@ packages, then set `GOARCH`, `CC`, `CXX`, and `CARGO_BUILD_TARGET` as shown in
 the release workflow before running `go tool mage build`. MSYS2 has removed several 32-bit
 packages from its active index, so x86 builds must first run
 `build/install-msys2-x86-dependencies.sh` to install the pinned archived
-dependency set used by CI and releases. The script also isolates Qt's host-side
-code generators with their compatible GCC runtime without replacing the
-current target compiler or packaged runtime.
+dependency set used by CI and releases. The script also extracts an isolated
+GCC 14 compiler and runtime matching those archived libraries; use
+`/opt/bwkp-gcc14/mingw32/bin/gcc.exe` and `g++.exe` for the x86 target, and set
+`BWKP_WINDOWS_GCC_RUNTIME_DIR=/opt/bwkp-gcc14/mingw32/bin` while assembling its
+runtime package. The active MSYS2 package database is not downgraded.
 
 Run Windows builds from the matching MSYS2 shell. The architecture settings are:
 
 | MSYS2 environment | `GOARCH` | `CC` / `CXX` | `CARGO_BUILD_TARGET` |
 | --- | --- | --- | --- |
-| `MINGW32` | `386` | `gcc` / `g++` | `i686-pc-windows-gnu` |
+| `MINGW32` | `386` | isolated GCC 14 `gcc.exe` / `g++.exe` | `i686-pc-windows-gnu` |
 | `MINGW64` | `amd64` | `gcc` / `g++` | `x86_64-pc-windows-gnu` |
 | `CLANGARM64` | `arm64` | `clang` / `clang++` | `aarch64-pc-windows-gnullvm` |
 

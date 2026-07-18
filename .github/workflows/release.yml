@@ -60,8 +60,9 @@ jobs:
             goarch: "386"
             rust-target: i686-pc-windows-gnu
             msystem: MINGW32
-            cc: gcc
-            cxx: g++
+            cc: /opt/bwkp-gcc14/mingw32/bin/gcc.exe
+            cxx: /opt/bwkp-gcc14/mingw32/bin/g++.exe
+            gcc-runtime-dir: /opt/bwkp-gcc14/mingw32/bin
             archived-x86-dependencies: true
             packages: >-
               mingw-w64-i686-toolchain mingw-w64-i686-cmake mingw-w64-i686-ninja
@@ -112,6 +113,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
+          BWKP_WINDOWS_GCC_RUNTIME_DIR: ${{ matrix.gcc-runtime-dir }}
           CARGO_BUILD_TARGET: ${{ matrix.rust-target }}
           VERSION: ${{ github.ref_name }}
           COMMIT: ${{ github.sha }}

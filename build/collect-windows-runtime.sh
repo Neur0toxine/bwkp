@@ -17,3 +17,13 @@ ldd "$binary" |
         ;;
     esac
   done
+
+# The archived MINGW32 dependencies require the GCC 14 runtime used to compile
+# that target. Override ldd's active-repository resolution when CI supplies the
+# isolated runtime directory.
+if [[ -n "${BWKP_WINDOWS_GCC_RUNTIME_DIR:-}" ]]; then
+  install -m 0755 \
+    "$BWKP_WINDOWS_GCC_RUNTIME_DIR/libgcc_s_dw2-1.dll" \
+    "$BWKP_WINDOWS_GCC_RUNTIME_DIR/libstdc++-6.dll" \
+    "$destination"
+fi
