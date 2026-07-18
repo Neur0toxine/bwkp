@@ -125,7 +125,11 @@ func buildKeePassXC() error {
 	if err := sh.RunV("cmake", arguments...); err != nil {
 		return err
 	}
-	return sh.RunV("cmake", "--build", "target/keepassxc", "--config", "Release", "--target", "bwkp_kpdb", "--parallel")
+	arguments = []string{"--build", "target/keepassxc", "--config", "Release", "--target", "bwkp_kpdb", "--parallel"}
+	if parallel := os.Getenv("CMAKE_BUILD_PARALLEL_LEVEL"); parallel != "" {
+		arguments = append(arguments, parallel)
+	}
+	return sh.RunV("cmake", arguments...)
 }
 
 type Android mg.Namespace
