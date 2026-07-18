@@ -287,10 +287,16 @@ func (environment *testEnvironment) enableTOTP(t *testing.T) {
 	t.Helper()
 	environment.compose(t, "stop", "vaultwarden")
 	database := filepath.Join(environment.state, "vaultwarden", "db.sqlite3")
-	userID := strings.TrimSpace(environment.run(t, nil, nil, "sqlite3", database, "select uuid from users where email='"+sourceEmail+"';"))
+	writableDatabase := database + ".writable"
+	writeFile(t, writableDatabase, readFile(t, database), 0o600)
+	t.Cleanup(func() { _ = os.Remove(writableDatabase) })
+	userID := strings.TrimSpace(environment.run(t, nil, nil, "sqlite3", writableDatabase, "select uuid from users where email='"+sourceEmail+"';"))
 	factorID := randomUUID(t)
 	statement := fmt.Sprintf("insert into twofactor(uuid,user_uuid,atype,enabled,data,last_used) values('%s','%s',0,1,'%s',0);", factorID, userID, totpSecret)
-	environment.run(t, nil, nil, "sqlite3", database, statement)
+	environment.run(t, nil, nil, "sqlite3", writableDatabase, statement)
+	if err := os.Rename(writableDatabase, database); err != nil {
+		t.Fatalf("replace Vaultwarden database: %v", err)
+	}
 	environment.compose(t, "start", "vaultwarden")
 	environment.waitForServer(t)
 	environment.writeSecret(t, environment.totpFile, generateTOTP(t, totpSecret, time.Now()))
