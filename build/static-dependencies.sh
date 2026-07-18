@@ -148,6 +148,14 @@ build_qt() {
       "$source/configure"
     rm -f "$source/configure.bwkp"
   fi
+  # CMake package files are the supported consumer metadata for this build.
+  # Qt 5's 32-bit MinGW build tries to install a .pc file it never generated.
+  if [[ -n "${MSYSTEM:-}" ]] && grep -q 'if(unix|mingw)' "$source/mkspecs/features/qt_module.prf"; then
+    sed -i.bwkp \
+      's/if(unix|mingw)/unix/' \
+      "$source/mkspecs/features/qt_module.prf"
+    rm -f "$source/mkspecs/features/qt_module.prf.bwkp"
+  fi
   # The Termux cross mkspec does not define Android's dynamic-library suffix.
   # Static Qt does not need it, so only use it when a mkspec supplies it.
   if ! grep -q 'defined(Q_OS_ANDROID) && defined(LIBS_SUFFIX)' "$source/src/corelib/plugin/qlibrary_unix.cpp"; then
