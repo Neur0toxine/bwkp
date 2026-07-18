@@ -1,5 +1,13 @@
 # Usage
 
+Both commands accept `--help`, `-help`, and `-h`. Help exits successfully and
+prints invocation forms, all options and defaults, and examples:
+
+```text
+bwkp export --help
+bwkp import --help
+```
+
 ## Interactive export
 
 For Bitwarden cloud, select the account region:
@@ -19,9 +27,10 @@ the server requires it, synchronizes the complete vault, downloads and decrypts
 attachments in memory, writes an encrypted candidate, reopens it through
 KeePassXC, then atomically installs the requested file. No session is reused.
 
-Interactive terminals show two progress bars for vault/attachment downloads
-and entry/KDBX conversion. Progress is automatically suppressed when standard
-error is redirected; use `--no-progress` to disable it explicitly.
+Interactive terminals show progress for vault and attachment downloads, entry
+conversion, and encrypted database writing. Progress is automatically
+suppressed when standard error is redirected; use `--no-progress` to disable
+it explicitly.
 
 Existing files are refused. Add `--force` to replace one after the new database
 has been written and verified.
@@ -53,6 +62,39 @@ or other users on Unix. `--key-file` adds an existing KeePass key file;
 - `--kdf-iterations N` for a fixed iteration count
 
 The default is KDBX 4.1, AES-256, gzip, and Argon2id calibrated near one second.
+
+## Export option reference
+
+Endpoint and account options:
+
+- `--region us|eu`: select Bitwarden's US or EU cloud. Use either this or
+  `--server`.
+- `--server URL`: use a self-hosted Vaultwarden base URL.
+- `--api-url URL` and `--identity-url URL`: advanced endpoint overrides.
+- `--ca-cert FILE`: trust an additional PEM certificate authority for a
+  self-hosted server.
+- `--email EMAIL`: account email (required).
+- `--output FILE`: destination `.kdbx` file (required).
+
+Credential and output options:
+
+- `--master-password-file FILE`, `--totp-file FILE`, and
+  `--database-password-file FILE`: read secrets from protected files.
+- `--key-file FILE`: add an existing KeePass key file.
+- `--key-file-only`: protect the database only with the key file.
+- `--force`: atomically replace an existing destination after verification.
+- `--no-progress`: disable terminal progress.
+- `--append-source`: append complete protected Bitwarden source metadata.
+- `--allow-lossy`: skip unconvertible items and report warnings.
+
+Database options:
+
+- `--cipher aes256|chacha20` (default `aes256`).
+- `--compression gzip|none` (default `gzip`).
+- `--kdf-memory-kib N` (default `65536`).
+- `--kdf-parallelism N` (default: up to four host CPUs).
+- `--kdf-target DURATION` (default `1s`).
+- `--kdf-iterations N`: use a fixed iteration count and disable calibration.
 
 Use `bwkp version` in bug reports. It prints the exporter version, commit,
 platform, KeePassXC version, and Bitwarden SDK version.
@@ -90,3 +132,16 @@ secure-note fallback and reported as a warning. Conversion failures are fatal
 unless `--allow-lossy` is supplied; that flag permits the affected entries to
 be skipped. `--append-source` adds protected `KP.SourceJSON` preservation data
 without embedding attachment bytes.
+
+## Import option reference
+
+Import accepts the same endpoint, account, CA certificate, secret file, key
+file, `--key-file-only`, `--no-progress`, `--append-source`, and `--allow-lossy`
+options documented above. Import-specific options are:
+
+- `--input FILE`: source `.kdbx` file (required).
+- `--conflict skip|delete|duplicate|update`: existing-item behavior (default
+  `skip`).
+
+Import does not accept export-only output and KDBX creation settings such as
+`--output`, `--force`, `--cipher`, compression, or KDF tuning.

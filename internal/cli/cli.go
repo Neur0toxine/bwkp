@@ -54,6 +54,7 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 func (c *CLI) importDatabase(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("bwkp import", flag.ContinueOnError)
 	flags.SetOutput(c.stderr)
+	flags.Usage = func() { c.importUsage(flags) }
 	var region, server, apiURL, identityURL, caCert, email, input string
 	var masterPasswordFile, totpFile, databasePasswordFile, keyFile, conflict string
 	var keyFileOnly, noProgress, appendSource, allowLossy bool
@@ -74,6 +75,9 @@ func (c *CLI) importDatabase(ctx context.Context, args []string) error {
 	flags.BoolVar(&allowLossy, "allow-lossy", false, "skip entries that cannot be preserved and show warnings")
 	flags.StringVar(&conflict, "conflict", string(app.ConflictSkip), "existing item behavior: skip, delete, duplicate, or update")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	if flags.NArg() != 0 {
@@ -148,6 +152,7 @@ func (c *CLI) importDatabase(ctx context.Context, args []string) error {
 func (c *CLI) export(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("bwkp export", flag.ContinueOnError)
 	flags.SetOutput(c.stderr)
+	flags.Usage = func() { c.exportUsage(flags) }
 	var region, server, apiURL, identityURL, caCert, email, output string
 	var masterPasswordFile, totpFile, databasePasswordFile, keyFile string
 	var force, keyFileOnly, noProgress, appendSource, allowLossy bool
@@ -179,6 +184,9 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.UintVar(&parallelism, "kdf-parallelism", uint(min(runtime.NumCPU(), 4)), "Argon2id parallel lanes")
 	flags.DurationVar(&target, "kdf-target", time.Second, "calibrated KDF duration")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	if flags.NArg() != 0 {
@@ -274,7 +282,55 @@ func readOptional(path string) ([]byte, error) {
 }
 
 func (c *CLI) usage() {
-	_, _ = fmt.Fprintln(c.stderr, "Usage:\n  bwkp export --server URL --email EMAIL --output FILE [options]\n  bwkp export --region us|eu --email EMAIL --output FILE [options]\n  bwkp import --server URL --email EMAIL --input FILE [options]\n  bwkp import --region us|eu --email EMAIL --input FILE [options]\n  bwkp version")
+	_, _ = fmt.Fprintln(c.stderr, "Usage:\n  bwkp export --server URL --email EMAIL --output FILE [options]\n  bwkp export --region us|eu --email EMAIL --output FILE [options]\n  bwkp import --server URL --email EMAIL --input FILE [options]\n  bwkp import --region us|eu --email EMAIL --input FILE [options]\n  bwkp version\n\nRun 'bwkp export --help' or 'bwkp import --help' for command options and examples.")
+}
+
+func (c *CLI) exportUsage(flags *flag.FlagSet) {
+	_, _ = fmt.Fprintln(c.stderr, `Export a Bitwarden or Vaultwarden vault to an encrypted KeePassXC database.
+
+Usage:
+  bwkp export --region us|eu --email EMAIL --output FILE [options]
+  bwkp export --server URL --email EMAIL --output FILE [options]
+
+Options:`)
+	c.printFlagDefaults(flags)
+	_, _ = fmt.Fprintln(c.stderr, `
+Examples:
+  bwkp export --region us --email alice@example.com --output vault.kdbx
+  bwkp export --server https://vault.example.com --email alice@example.com --output vault.kdbx
+  bwkp export --region eu --email alice@example.com --output vault.kdbx --key-file key.xml --force
+  bwkp export --region us --email alice@example.com --output vault.kdbx --master-password-file master.txt --database-password-file database.txt --totp-file totp.txt --no-progress`)
+}
+
+func (c *CLI) importUsage(flags *flag.FlagSet) {
+	_, _ = fmt.Fprintln(c.stderr, `Import an encrypted KeePassXC database into a Bitwarden or Vaultwarden vault.
+
+Usage:
+  bwkp import --region us|eu --email EMAIL --input FILE [options]
+  bwkp import --server URL --email EMAIL --input FILE [options]
+
+Options:`)
+	c.printFlagDefaults(flags)
+	_, _ = fmt.Fprintln(c.stderr, `
+Examples:
+  bwkp import --region us --email alice@example.com --input vault.kdbx
+  bwkp import --server https://vault.example.com --email alice@example.com --input vault.kdbx
+  bwkp import --region eu --email alice@example.com --input vault.kdbx --conflict update --key-file key.xml
+  bwkp import --region us --email alice@example.com --input vault.kdbx --master-password-file master.txt --database-password-file database.txt --totp-file totp.txt --no-progress`)
+}
+
+func (c *CLI) printFlagDefaults(flags *flag.FlagSet) {
+	flags.VisitAll(func(option *flag.Flag) {
+		valueName, usage := flag.UnquoteUsage(option)
+		if valueName != "" {
+			valueName = " " + valueName
+		}
+		_, _ = fmt.Fprintf(c.stderr, "  --%s%s\n      %s", option.Name, valueName, usage)
+		if option.DefValue != "" && option.DefValue != "false" && option.DefValue != "0" {
+			_, _ = fmt.Fprintf(c.stderr, " (default %q)", option.DefValue)
+		}
+		_, _ = fmt.Fprintln(c.stderr)
+	})
 }
 
 func ExitCode(err error) int {

@@ -29,7 +29,9 @@ bwkp import --server https://vault.example.com --email alice@example.com --input
 
 The program prompts for the master password, authenticator code when required,
 and target database password. For automation, each secret can be supplied from
-a permission-restricted file. See [the user guide](docs/user/usage.md).
+a permission-restricted file. Run `bwkp export --help` or `bwkp import --help`
+for complete command options and examples. See [the user guide](docs/user/usage.md)
+for the same reference with additional explanations.
 
 ## Build and test
 
