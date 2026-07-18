@@ -7,7 +7,8 @@ session, or write an intermediate plaintext export.
 The native compatibility boundary is deliberately narrow:
 
 - Bitwarden access and decryption use the official Rust SDK 3.0.0, pinned to
-  commit `7fd530e4852639d7391d062760891631ee9c15c1`.
+  commit `7fd530e4852639d7391d062760891631ee9c15c1`. Requests use the official
+  Bitwarden CLI 2026.6.0 client identity and platform-specific user agent.
 - KDBX writing and verification use the statically linked KeePassXC 2.7.12
   C++ core. There is no independent KDBX implementation.
 

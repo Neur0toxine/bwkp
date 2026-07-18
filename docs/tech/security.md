@@ -17,3 +17,9 @@ has a separate allocator/free pair. Both boundaries catch language failures.
 Database verification uses the same statically linked KeePassXC reader that
 wrote the file, with the selected password/key file, before replacement. CI
 also opens and inventories output with a separately installed KeePassXC CLI.
+
+Vaultwarden attachment URLs are signed, unauthenticated `/attachments/...`
+URLs and are fetched without the account bearer token. The download request
+does carry the official Bitwarden CLI user-agent and platform headers so that
+client-aware reverse proxies and WAF policies treat it consistently with API
+requests.

@@ -5,6 +5,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 state="$root/test/e2e/.state"
 compose=(docker compose -f "$root/test/e2e/compose.yml")
 port=${BWKP_VAULTWARDEN_PORT:-18080}
+backend_port=${BWKP_VAULTWARDEN_BACKEND_PORT:-18081}
 server="https://localhost:$port"
 email="bwkp-e2e@example.test"
 master_password="E2E master password 2026!"
@@ -12,6 +13,9 @@ database_password="E2E database password 2026!"
 totp_secret="JBSWY3DPEHPK3PXP"
 
 cleanup() {
+  if [[ -n "${waf_pid:-}" ]]; then
+    kill "$waf_pid" >/dev/null 2>&1 || true
+  fi
   "${compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -29,6 +33,19 @@ openssl x509 -req -in "$state/server.csr" -CA "$state/ca.pem" -CAkey "$state/ca-
 export NODE_EXTRA_CA_CERTS="$state/ca.pem"
 export SSL_CERT_FILE="$state/ca.pem"
 "${compose[@]}" up --detach --wait
+node "$root/test/e2e/waf-proxy.mjs" "$port" "$backend_port" \
+  "$state/vaultwarden/cert.pem" "$state/vaultwarden/key.pem" >"$state/waf.log" 2>&1 &
+waf_pid=$!
+for _ in $(seq 1 60); do
+  if curl --cacert "$state/ca.pem" --fail --silent "$server/alive" >/dev/null; then break; fi
+  sleep 1
+done
+waf_status=$(curl --cacert "$state/ca.pem" --silent --output /dev/null --write-out '%{http_code}' \
+  "$server/attachments/test-cipher/test-file?token=test")
+if [[ "$waf_status" != "401" ]]; then
+  echo "e2e WAF did not reject an attachment request without a Bitwarden user-agent" >&2
+  exit 1
+fi
 
 cargo run --quiet --manifest-path "$root/Cargo.toml" -p bwkp-e2e-register -- \
   "$server" "$email" "$master_password" "$state/ca.pem"
@@ -45,7 +62,8 @@ item.sshKey.keyFingerprint = fingerprint;
 fs.writeFileSync(target, JSON.stringify(vault));
 NODE
 export BITWARDENCLI_APPDATA_DIR="$state/cli"
-bw=(npx -y @bitwarden/cli@2026.6.0)
+bitwarden_cli_version=2026.6.0 # Keep aligned with native/bw/src/lib.rs.
+bw=(npx -y "@bitwarden/cli@$bitwarden_cli_version")
 "${bw[@]}" config server "$server" >/dev/null
 session=$("${bw[@]}" login --raw --nointeraction "$email" "$master_password")
 "${bw[@]}" --session "$session" import bitwardenjson "$state/vault.json" >/dev/null

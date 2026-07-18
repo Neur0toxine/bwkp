@@ -26,6 +26,9 @@ use uuid::Uuid;
 use zeroize::{Zeroize, Zeroizing};
 
 const DEVICE_NAMESPACE: Uuid = Uuid::from_u128(0x0a85_5eb0_9127_4acf_b265_3999_23a9_0e2d);
+// Keep this aligned with the official CLI used by the e2e fixture. Bitwarden's
+// CLI sends this version in both its User-Agent and Bitwarden-Client-Version.
+const BITWARDEN_CLI_VERSION: &str = "2026.6.0";
 
 pub struct Session {
     runtime: Runtime,
@@ -166,11 +169,11 @@ pub fn login(request: &[u8]) -> Result<LoginOutcome> {
     let settings = ClientSettings {
         identity_url: input.endpoints.identity_url.clone(),
         api_url: input.endpoints.api_url.clone(),
-        user_agent: format!("bwkp/{}", env!("CARGO_PKG_VERSION")),
+        user_agent: bitwarden_cli_user_agent(),
         device_type: platform_device_type(),
         device_identifier: Some(device_identifier),
-        bitwarden_client_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
-        bitwarden_package_type: Some("cli".to_owned()),
+        bitwarden_client_version: Some(BITWARDEN_CLI_VERSION.to_owned()),
+        bitwarden_package_type: None,
     };
     let client = Client::builder()
         .with_settings(settings)
@@ -481,12 +484,9 @@ async fn download_attachment_async(session: &Session, input: AttachmentInput) ->
         .url
         .or(attachment.url.clone())
         .context("server returned no attachment URL")?;
-    let mut response = session
-        .client
-        .internal
-        .get_http_client()
-        .get(url)
-        .send()
+    let http_client = session.client.internal.get_http_client();
+    let mut response = http_client
+        .execute(attachment_download_request(http_client, url)?)
         .await
         .context("download encrypted attachment")?
         .error_for_status()
@@ -509,6 +509,17 @@ async fn download_attachment_async(session: &Session, input: AttachmentInput) ->
     Ok(decrypted)
 }
 
+fn attachment_download_request(client: &reqwest::Client, url: String) -> Result<reqwest::Request> {
+    client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, bitwarden_cli_user_agent())
+        .header("Bitwarden-Client-Name", "cli")
+        .header("Bitwarden-Client-Version", BITWARDEN_CLI_VERSION)
+        .header("Device-Type", (platform_device_type() as u8).to_string())
+        .build()
+        .context("build attachment download request")
+}
+
 fn attachment_key(item_id: &str, attachment_id: &str) -> String {
     format!("{item_id}\0{attachment_id}")
 }
@@ -523,9 +534,23 @@ fn platform_device_type() -> DeviceType {
     }
 }
 
+fn bitwarden_cli_user_agent() -> String {
+    let platform = if cfg!(target_os = "windows") {
+        "WINDOWS"
+    } else if cfg!(target_os = "macos") {
+        "MACOS"
+    } else {
+        "LINUX"
+    };
+    format!("Bitwarden_CLI/{BITWARDEN_CLI_VERSION} ({platform})")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::normalize_vaultwarden_sync;
+    use super::{
+        BITWARDEN_CLI_VERSION, attachment_download_request, bitwarden_cli_user_agent,
+        normalize_vaultwarden_sync, platform_device_type,
+    };
     use serde_json::{Value, json};
 
     #[test]
@@ -572,5 +597,51 @@ mod tests {
             normalize_vaultwarden_sync(&mut response);
             assert_eq!(response, expected);
         }
+    }
+
+    #[test]
+    fn uses_official_bitwarden_cli_user_agent_shape() {
+        let expected_platform = if cfg!(target_os = "windows") {
+            "WINDOWS"
+        } else if cfg!(target_os = "macos") {
+            "MACOS"
+        } else {
+            "LINUX"
+        };
+
+        assert_eq!(
+            bitwarden_cli_user_agent(),
+            format!("Bitwarden_CLI/{BITWARDEN_CLI_VERSION} ({expected_platform})")
+        );
+    }
+
+    #[test]
+    fn attachment_download_uses_official_client_headers_without_credentials() {
+        let client = reqwest::Client::new();
+        let request = attachment_download_request(
+            &client,
+            "https://vault.example/attachments/cipher/file?token=signed".to_owned(),
+        )
+        .expect("attachment request");
+
+        assert_eq!(
+            request.headers()[reqwest::header::USER_AGENT],
+            bitwarden_cli_user_agent()
+        );
+        assert_eq!(request.headers()["Bitwarden-Client-Name"], "cli");
+        assert_eq!(
+            request.headers()["Bitwarden-Client-Version"],
+            BITWARDEN_CLI_VERSION
+        );
+        assert_eq!(
+            request.headers()["Device-Type"],
+            (platform_device_type() as u8).to_string()
+        );
+        assert!(
+            !request
+                .headers()
+                .contains_key(reqwest::header::AUTHORIZATION)
+        );
+        assert!(!request.headers().contains_key("Bitwarden-Package-Type"));
     }
 }

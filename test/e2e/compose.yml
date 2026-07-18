@@ -9,7 +9,7 @@ services:
       WEBSOCKET_ENABLED: "false"
       LOG_LEVEL: warn
     ports:
-      - 127.0.0.1:${BWKP_VAULTWARDEN_PORT:-18080}:80
+      - 127.0.0.1:${BWKP_VAULTWARDEN_BACKEND_PORT:-18081}:80
     volumes:
       - ./.state/vaultwarden:/data
     healthcheck:
