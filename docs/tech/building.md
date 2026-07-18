@@ -73,7 +73,7 @@ is not a fully static executable.
 Additional tools are target-specific:
 
 - Docker or Podman is required for container images and the e2e suite.
-- Node.js 24, npm/npx, OpenSSL, OpenSSH client tools, SQLite, and
+- Node.js 24, npm/npx, OpenSSH client tools, SQLite, and
   `keepassxc-cli` are required by `test:e2e`.
 - Android builds require a Docker-compatible `docker` command. Mage downloads
   a pinned Termux package-builder snapshot and runs it in its official builder

@@ -140,7 +140,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: |
           sudo apt-get update
-          sudo apt-get install --yes keepassxc sqlite3 openssh-client openssl cmake g++ pkg-config \
+          sudo apt-get install --yes keepassxc sqlite3 openssh-client cmake g++ pkg-config \
             qtbase5-dev qttools5-dev libqt5svg5-dev libbotan-2-dev libargon2-dev \
             libminizip-dev libqrencode-dev
       - run: go tool mage test:e2e

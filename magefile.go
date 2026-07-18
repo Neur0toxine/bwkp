@@ -349,7 +349,7 @@ func (Test) Native() error {
 
 func (Test) E2E() error {
 	mg.Deps(Build)
-	return sh.RunV("bash", "test/e2e/run.sh")
+	return sh.RunV("go", "-C", "test/e2e", "test", "-count=1", "-v", ".")
 }
 
 func (Test) All() { mg.Deps(Test.Unit, Test.Native, Test.E2E) }

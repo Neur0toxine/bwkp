@@ -17,6 +17,10 @@ skip, update, delete, and duplicate conflict modes against the live destination
 vault. Newer structured SDK types are covered in pure mapping tests because the
 pinned Vaultwarden server does not accept them.
 
+The suite is a separate Go module under `test/e2e`. Its test cases run
+sequentially and use the Go testing lifecycle for disposable TLS certificates,
+the Compose service, the WAF fixture, command timeouts, and teardown.
+
 The server is fronted by a small WAF fixture which returns HTTP 401 when an
 attachment or mutation lacks the official Bitwarden CLI user-agent, client
 name, client version, and device type headers. Rust unit tests also assert all
