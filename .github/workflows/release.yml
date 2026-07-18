@@ -34,6 +34,10 @@ jobs:
         run: |
           brew install cmake qt@5 botan argon2 minizip qrencode
           echo "PKG_CONFIG_PATH=$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+      - if: matrix.dependencies != 'macos'
+        run: |
+          build/install-upx.sh "$RUNNER_TEMP/upx"
+          echo "$RUNNER_TEMP/upx" >> "$GITHUB_PATH"
       - shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}" COMMIT="$GITHUB_SHA" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage ${{ matrix.mage-target }}

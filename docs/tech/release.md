@@ -130,6 +130,12 @@ The build injects the release version, tagged commit SHA, and UTC build time.
 `bwkp version` also preserves the pinned upstream Bitwarden SDK and KeePassXC
 version output, which is part of dependency-upgrade review.
 
+All builds omit linker symbols, debug tables, local source paths, and build
+identifiers. Linux and Android artifacts are additionally packed with the
+pinned, checksum-verified UPX release and tested by UPX before packaging. macOS
+Mach-O executables are stripped but remain unpacked because UPX does not support
+that format.
+
 Every archive receives a GitHub build-provenance attestation. After all target
 jobs finish, the checksum job downloads the archives and uploads `SHA256SUMS`.
 Users can therefore verify both the archive digest and its association with the

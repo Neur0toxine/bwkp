@@ -88,7 +88,13 @@ VERSION=1.2.3 COMMIT="$(git rev-parse HEAD)" \
 `go tool mage build` performs these phases in order: Cargo builds the pinned
 Bitwarden SDK adapter, CMake builds the pinned KeePassXC core and bridge, and Go
 links the native archives into the command with cgo. Generated output lives
-under `target/` and `dist/`.
+under `target/` and `dist/`. Linker symbols, debug tables, source paths, and
+build identifiers are omitted from release-style binaries. When `upx` is in
+`PATH`, Mage also packs Linux and Android executables with its best LZMA mode
+and verifies the result. Set `BWKP_UPX=0` to leave a local build unpacked for
+profiling or executable inspection. Release and container builds install the
+pinned, checksum-verified UPX version automatically; UPX does not support the
+macOS Mach-O output format.
 
 Useful verification targets are:
 

@@ -40,8 +40,18 @@ func Build() error {
 		output += ".exe"
 	}
 	ldflags := fmt.Sprintf("-s -w -X github.com/Neur0toxine/bwkp/internal/buildinfo.Version=%s -X github.com/Neur0toxine/bwkp/internal/buildinfo.Commit=%s -X github.com/Neur0toxine/bwkp/internal/buildinfo.Date=%s", version, commit, date)
+	ldflags += " -buildid="
+	switch runtime.GOOS {
+	case "linux":
+		ldflags += " -extldflags=-Wl,--gc-sections,--build-id=none"
+	case "darwin":
+		ldflags += " -extldflags=-Wl,-dead_strip,-no_uuid"
+	}
 	// CGo does not include external archive mtimes in Go's build cache key.
-	return sh.RunWithV(map[string]string{"CGO_ENABLED": "1"}, "go", "build", "-a", "-trimpath", "-tags", "native", "-ldflags", ldflags, "-o", output, "./cmd/bwkp")
+	if err := sh.RunWithV(map[string]string{"CGO_ENABLED": "1"}, "go", "build", "-a", "-trimpath", "-tags", "native", "-ldflags", ldflags, "-o", output, "./cmd/bwkp"); err != nil {
+		return err
+	}
+	return packBinary(output)
 }
 
 // Image builds the runtime container image, preferring Podman over Docker.
@@ -154,7 +164,29 @@ func buildAndroid(termuxArch, artifactArch string) error {
 		return err
 	}
 	source := filepath.Join(packageRoot, "data", "data", "com.termux", "files", "usr", "bin", "bwkp")
-	return copyFile(source, filepath.Join("dist", "bwkp-android-"+artifactArch), 0o755)
+	output := filepath.Join("dist", "bwkp-android-"+artifactArch)
+	if err := copyFile(source, output, 0o755); err != nil {
+		return err
+	}
+	return packBinary(output)
+}
+
+func packBinary(path string) error {
+	if os.Getenv("BWKP_UPX") == "0" {
+		return nil
+	}
+	upx, err := exec.LookPath("upx")
+	if err != nil {
+		fmt.Println("UPX not found; leaving binary unpacked")
+		return nil
+	}
+	if err := sh.RunV(upx, "--best", "--lzma", path); err != nil {
+		return fmt.Errorf("pack %s with UPX: %w", path, err)
+	}
+	if err := sh.RunV(upx, "--test", path); err != nil {
+		return fmt.Errorf("test UPX-packed %s: %w", path, err)
+	}
+	return nil
 }
 
 func extractDeb(archive, destination string) error {

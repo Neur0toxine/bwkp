@@ -34,7 +34,7 @@ termux_step_make() {
 	esac
 	CGO_ENABLED=1 GOOS=android GOARCH="$goarch" GOARM="$goarm" \
 		go build -a -trimpath -tags native \
-		-ldflags "-s -w -X github.com/Neur0toxine/bwkp/internal/buildinfo.Version=${VERSION:-dev} -X github.com/Neur0toxine/bwkp/internal/buildinfo.Commit=${COMMIT:-unknown} -X github.com/Neur0toxine/bwkp/internal/buildinfo.Date=${BUILD_DATE:-unknown}" \
+		-ldflags "-s -w -buildid= -extldflags=-Wl,--gc-sections,--build-id=none -X github.com/Neur0toxine/bwkp/internal/buildinfo.Version=${VERSION:-dev} -X github.com/Neur0toxine/bwkp/internal/buildinfo.Commit=${COMMIT:-unknown} -X github.com/Neur0toxine/bwkp/internal/buildinfo.Date=${BUILD_DATE:-unknown}" \
 		-o "$TERMUX_PREFIX/bin/bwkp" ./cmd/bwkp
 }
 

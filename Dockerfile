@@ -16,7 +16,8 @@ RUN apt-get update \
 ENV PATH=/usr/local/go/bin:$PATH
 WORKDIR /src
 COPY . .
-RUN VERSION="$VERSION" COMMIT="$COMMIT" BUILD_DATE="$BUILD_DATE" go tool mage build
+RUN ./build/install-upx.sh /usr/local/bin \
+    && VERSION="$VERSION" COMMIT="$COMMIT" BUILD_DATE="$BUILD_DATE" go tool mage build
 
 FROM scratch AS artifact
 COPY --from=build /src/dist/bwkp /bwkp
