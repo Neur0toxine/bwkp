@@ -140,6 +140,14 @@ build_qt() {
     7b632550ea1048fc10c741e46e2e3b093e5ca94dfa6209e9e0848800e247023b
   local source="$sources/qtbase-$qt_version"
   extract "$downloads/qtbase-$qt_version.tar.xz" "$source" configure
+  # GitHub's MSYS2 shell does not reliably expose OSTYPE=msys to child scripts.
+  # Use MSYSTEM as the authoritative signal so Qt writes native drive paths.
+  if ! grep -q 'MSYSTEM:-' "$source/configure"; then
+    sed -i.bwkp \
+      's/if \[ "$OSTYPE" = "msys" \]; then/if [ "$OSTYPE" = "msys" ] || [ -n "${MSYSTEM:-}" ]; then/' \
+      "$source/configure"
+    rm -f "$source/configure.bwkp"
+  fi
   # The Termux cross mkspec does not define Android's dynamic-library suffix.
   # Static Qt does not need it, so only use it when a mkspec supplies it.
   if ! grep -q 'defined(Q_OS_ANDROID) && defined(LIBS_SUFFIX)' "$source/src/corelib/plugin/qlibrary_unix.cpp"; then
