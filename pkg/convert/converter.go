@@ -26,10 +26,18 @@ type Report struct {
 	Entries     int
 	Attachments int
 	Passkeys    int
+	Warnings    []Warning
+}
+
+type Warning struct {
+	ItemID   string
+	ItemName string
+	Message  string
 }
 
 type Options struct {
 	AppendSource bool
+	AllowLossy   bool
 }
 
 type Converter struct {
@@ -58,10 +66,19 @@ func (c *Converter) ConvertWithProgress(vault bw.Vault, progress func(completed,
 		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 	})
 
-	report := Report{Items: len(items)}
+	report := Report{}
 	for index, item := range items {
 		entries, err := c.convertItem(item)
 		if err != nil {
+			if c.options.AllowLossy {
+				report.Warnings = append(report.Warnings, Warning{
+					ItemID: item.ID, ItemName: item.Name, Message: err.Error(),
+				})
+				if progress != nil {
+					progress(index+1, len(items))
+				}
+				continue
+			}
 			return kp.Database{}, Report{}, fmt.Errorf("convert item %q (%s): %w", item.Name, item.ID, err)
 		}
 		path := itemPath(item, folders, organizations, collections)
@@ -74,6 +91,7 @@ func (c *Converter) ConvertWithProgress(vault bw.Vault, progress func(completed,
 		if item.Login != nil {
 			report.Passkeys += len(item.Login.FIDO2Credentials)
 		}
+		report.Items++
 		if progress != nil {
 			progress(index+1, len(items))
 		}

@@ -54,7 +54,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.SetOutput(c.stderr)
 	var region, server, apiURL, identityURL, caCert, email, output string
 	var masterPasswordFile, totpFile, databasePasswordFile, keyFile string
-	var force, keyFileOnly, noProgress, appendSource bool
+	var force, keyFileOnly, noProgress, appendSource, allowLossy bool
 	var cipher, compression string
 	var memory uint64
 	var iterations uint64
@@ -75,6 +75,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.BoolVar(&keyFileOnly, "key-file-only", false, "do not add a database password")
 	flags.BoolVar(&noProgress, "no-progress", false, "disable interactive progress bars")
 	flags.BoolVar(&appendSource, "append-source", false, "append complete protected Bitwarden source metadata")
+	flags.BoolVar(&allowLossy, "allow-lossy", false, "skip items that cannot be converted and show warnings")
 	flags.StringVar(&cipher, "cipher", string(kpdb.CipherAES256), "KDBX cipher: aes256 or chacha20")
 	flags.StringVar(&compression, "compression", string(kpdb.CompressionGZip), "KDBX compression: gzip or none")
 	flags.Uint64Var(&memory, "kdf-memory-kib", 64*1024, "Argon2id memory in KiB")
@@ -131,7 +132,10 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 
 	progressRenderer := progress.NewTerminal(c.stderr, !noProgress)
 	defer progressRenderer.Close()
-	exporter := app.New(bwapi.NewNativeClient(), convert.NewWithOptions(convert.Options{AppendSource: appendSource}), kpdb.NewNativeWriter())
+	exporter := app.New(bwapi.NewNativeClient(), convert.NewWithOptions(convert.Options{
+		AppendSource: appendSource,
+		AllowLossy:   allowLossy,
+	}), kpdb.NewNativeWriter())
 	report, err := exporter.Export(ctx, app.Request{
 		Login:  bwapi.LoginRequest{Endpoints: endpoints, Email: email, MasterPassword: masterPassword},
 		TOTP:   func(context.Context) (string, error) { return prompt.Code("Authenticator code", totpFile) },
@@ -140,8 +144,21 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	progressRenderer.Close()
+	if err := writeWarnings(c.stderr, report.Warnings); err != nil {
+		return err
+	}
 	_, err = fmt.Fprintf(c.stdout, "Exported %d items as %d entries with %d attachments to %s\n", report.Items, report.Entries, report.Attachments, output)
 	return err
+}
+
+func writeWarnings(writer io.Writer, warnings []convert.Warning) error {
+	for _, warning := range warnings {
+		if _, err := fmt.Fprintf(writer, "Warning: skipped item %q (%s): %s\n", warning.ItemName, warning.ItemID, warning.Message); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func readOptional(path string) ([]byte, error) {

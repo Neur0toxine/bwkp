@@ -2,6 +2,7 @@ package convert_test
 
 import (
 	"encoding/base64"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,40 @@ func TestConvertRejectsUnknownType(t *testing.T) {
 	_, _, err := convert.New().Convert(bw.Vault{Items: []bw.Item{{ID: "x", Type: "future", Name: "Future"}}})
 	if err == nil || !strings.Contains(err.Error(), "unsupported") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestConvertAllowLossySkipsInvalidItemsAndReportsWarnings(t *testing.T) {
+	vault := bw.Vault{Items: []bw.Item{
+		{ID: "valid", Type: bw.ItemTypeSecureNote, Name: "Valid"},
+		{ID: "unknown", Type: "future", Name: "Unknown"},
+		{ID: "missing", Type: bw.ItemTypeLogin, Name: "Missing payload"},
+	}}
+	var progress []int
+	db, report, err := convert.NewWithOptions(convert.Options{AllowLossy: true}).ConvertWithProgress(vault, func(completed, total int) {
+		if total != len(vault.Items) {
+			t.Fatalf("progress total = %d", total)
+		}
+		progress = append(progress, completed)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Items != 1 || report.Entries != 1 || len(report.Warnings) != 2 {
+		t.Fatalf("report = %+v", report)
+	}
+	if report.Warnings[0].ItemID != "missing" || !strings.Contains(report.Warnings[0].Message, "login payload is missing") {
+		t.Fatalf("first warning = %+v", report.Warnings[0])
+	}
+	if report.Warnings[1].ItemID != "unknown" || !strings.Contains(report.Warnings[1].Message, "type \"future\"") {
+		t.Fatalf("second warning = %+v", report.Warnings[1])
+	}
+	if !slices.Equal(progress, []int{1, 2, 3}) {
+		t.Fatalf("progress = %v", progress)
+	}
+	entry := mustEntry(t, db.Root, "Personal", "Unfiled")
+	if entry.Title != "Valid" {
+		t.Fatalf("converted entry title = %q", entry.Title)
 	}
 }
 

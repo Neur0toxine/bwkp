@@ -17,7 +17,8 @@ With `--append-source`, every entry also contains protected `BW.SourceJSON` and
 the complete source identity metadata. This preserves the normalized decrypted
 Bitwarden representation and permits future recovery. Without the flag, fields
 that were converted exactly are not duplicated. Unknown item types fail the
-export instead of being silently discarded.
+export instead of being silently discarded. With `--allow-lossy`, items that
+cannot be converted are skipped and reported as warnings.
 
 Sends are outside the vault sync/export scope. Deleted and archived ciphers are
 included. Attachment bytes never enter the JSON source field; they are added to

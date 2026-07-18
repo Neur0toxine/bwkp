@@ -31,6 +31,11 @@ has no exact KeePassXC representation. Add `--append-source` to append every
 entry's complete protected source JSON and source identity metadata for archival
 or future recovery purposes.
 
+By default, an item that cannot be converted stops the export. Add
+`--allow-lossy` to skip such items, print a warning for each one, and write the
+remaining items to the database. Authentication, synchronization, attachment,
+and KDBX write errors remain fatal.
+
 ## Non-interactive secrets
 
 Use `--master-password-file`, `--totp-file`, and
