@@ -58,8 +58,9 @@ packages, then set `GOARCH`, `CC`, `CXX`, and `CARGO_BUILD_TARGET` as shown in
 the release workflow before running `go tool mage build`. MSYS2 has removed several 32-bit
 packages from its active index, so x86 builds must first run
 `build/install-msys2-x86-dependencies.sh` to install the pinned archived
-dependency set, including the Qt-compatible GCC toolchain, used by CI and
-releases.
+dependency set used by CI and releases. The script also isolates Qt's host-side
+code generators with their compatible GCC runtime without replacing the
+current target compiler or packaged runtime.
 
 Run Windows builds from the matching MSYS2 shell. The architecture settings are:
 
