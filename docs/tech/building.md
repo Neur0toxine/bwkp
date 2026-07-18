@@ -51,6 +51,11 @@ brew install cmake qt@5 botan argon2 minizip qrencode
 export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH"
 ```
 
+Both Intel and Apple-silicon macOS builds are native host builds. The release
+and CI matrices use separate `macos-13` Intel and `macos-14` ARM runners, so no
+cross-compilation or universal-binary merge is involved. The resulting
+`macos-amd64` and `macos-arm64` archives are selected by `Casks/bwkp.rb`.
+
 The runtime machine also needs the corresponding shared Qt, Botan, Argon2,
 minizip, qrencode, zlib, and C++ runtime libraries. The release build embeds
 the Go code, the official Bitwarden SDK wrapper, and the KeePassXC core, but it

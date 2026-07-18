@@ -8,6 +8,21 @@ bwkp export --help
 bwkp import --help
 ```
 
+## macOS and Homebrew
+
+The repository is a Homebrew tap. Add it with its explicit GitHub URL, then
+install the cask:
+
+```text
+brew tap Neur0toxine/bwkp https://github.com/Neur0toxine/bwkp
+brew install --cask Neur0toxine/bwkp/bwkp
+```
+
+The cask selects a separate release binary for Intel or Apple silicon and
+installs the required Homebrew runtime libraries. `brew update` and
+`brew upgrade bwkp` install later releases. Intel builds are retained for
+legacy Macs; Apple-silicon Macs use the native ARM64 binary rather than Rosetta.
+
 ## Android and Termux
 
 Release archives named `android-arm64` support modern 64-bit ARM Android

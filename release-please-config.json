@@ -4,7 +4,13 @@
       "release-type": "simple",
       "package-name": "bwkp",
       "changelog-path": "CHANGELOG.md",
-      "include-component-in-tag": false
+      "include-component-in-tag": false,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "Casks/bwkp.rb"
+        }
+      ]
     }
   }
 }

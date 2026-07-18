@@ -1,6 +1,6 @@
 # Release lifecycle
 
-`bwkp` uses release-please to turn Conventional Commits on `main` into a
+`bwkp` uses release-please to turn Conventional Commits on `master` into a
 versioned release pull request. Merging that pull request creates the Git tag
 and GitHub release; publishing the release starts the separate artifact build.
 Maintainers normally do not edit the version, changelog, or tag by hand.
@@ -39,7 +39,7 @@ should follow the same convention when the repository uses squash merges.
 
 Before merging a release pull request:
 
-1. Confirm CI is green on `main` and run `go tool mage verify` locally.
+1. Confirm CI is green on `master` and run `go tool mage verify` locally.
 2. Run `go tool mage test:e2e` when authentication, synchronization,
    attachments, native bindings, or KDBX behavior changed.
 3. Review the generated version and `CHANGELOG.md`, including breaking changes
@@ -56,7 +56,7 @@ a maintainer machine.
 
 ## Automatic changelog
 
-On each push to `main`, `.github/workflows/release-please.yml` runs
+On each push to `master`, `.github/workflows/release-please.yml` runs
 release-please using `release-please-config.json`. It opens or refreshes one
 release pull request containing:
 
@@ -82,7 +82,7 @@ release-please update can reconcile it.
 The normal lifecycle is:
 
 ```text
-Conventional commits merged to main
+Conventional commits merged to master
         -> release-please updates a release PR
         -> maintainer reviews and merges the release PR
         -> release-please creates tag vX.Y.Z and publishes a GitHub release
@@ -140,6 +140,12 @@ Every archive receives a GitHub build-provenance attestation. After all target
 jobs finish, the checksum job downloads the archives and uploads `SHA256SUMS`.
 Users can therefore verify both the archive digest and its association with the
 GitHub Actions build.
+
+That checksum job also writes the Intel and ARM64 macOS archive digests into
+`Casks/bwkp.rb` and commits the cask update to `master`. Release Please has
+already updated the cask version in the release pull request. Until the
+first artifact release completes, the all-zero bootstrap digests intentionally
+make cask installation fail closed; they are never valid release checksums.
 
 ## Static linking and compatibility
 

@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -46,6 +46,28 @@ jobs:
         with: {go-version-file: go.mod, cache: true}
       - run: go tool mage ${{ matrix.mage-target }}
       - run: file dist/bwkp-android-${{ matrix.target }}
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-13, macos-14]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod, cache: true}
+      - uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1}
+      - run: brew install cmake qt@5 botan argon2 minizip qrencode
+      - run: echo "PKG_CONFIG_PATH=$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+      - run: go tool mage build
+      - run: |
+          file dist/bwkp
+          dist/bwkp version
+          otool -L dist/bwkp
+          brew tap Neur0toxine/bwkp "$GITHUB_WORKSPACE"
+          brew audit --strict --cask Neur0toxine/bwkp/bwkp
 
   e2e:
     runs-on: ubuntu-24.04
