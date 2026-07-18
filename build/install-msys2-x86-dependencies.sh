@@ -36,6 +36,10 @@ curl --fail --location --silent --show-error \
 install -d "$gcc_toolchain"
 bsdtar --extract --file "$gcc_packages/gcc-libs.pkg.tar.zst" --directory "$gcc_toolchain"
 bsdtar --extract --file "$gcc_packages/gcc.pkg.tar.zst" --directory "$gcc_toolchain"
+# GCC derives its system include and CRT paths from its relocated executable.
+# Supply the target sysroot installed by the current MINGW32 toolchain while
+# retaining the archived compiler binaries and C++ runtime.
+cp -a /mingw32/i686-w64-mingw32 "$gcc_toolchain/mingw32/"
 
 install -d "$qt_tools"
 install -m 0755 /mingw32/bin/{moc,qmake,rcc,uic}.exe "$qt_tools"
