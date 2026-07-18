@@ -132,8 +132,9 @@ jobs:
           BWKP_UPX: "0"
         run: |
           go tool mage build
-          file dist/bwkp.exe
-          dist/bwkp.exe version
+          build/collect-windows-runtime.sh dist/bwkp.exe package
+          file package/bwkp.exe
+          package/bwkp.exe version
 
   e2e:
     runs-on: ubuntu-24.04
