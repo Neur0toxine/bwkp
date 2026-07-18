@@ -13,11 +13,12 @@ import (
 )
 
 type Renderer struct {
-	mu      sync.Mutex
-	writer  io.Writer
-	enabled bool
-	bar     *progressbar.ProgressBar
-	stage   int
+	mu            sync.Mutex
+	writer        io.Writer
+	enabled       bool
+	bar           *progressbar.ProgressBar
+	stage         int
+	indeterminate bool
 }
 
 func NewTerminal(writer io.Writer, requested bool) *Renderer {
@@ -42,15 +43,16 @@ func (r *Renderer) Update(update app.ProgressUpdate) {
 
 	total := max(update.Total, 1)
 	completed := min(max(update.Completed, 0), total)
-	if r.bar == nil || r.stage != update.Stage {
+	if r.bar == nil || r.stage != update.Stage || r.indeterminate != update.Indeterminate {
 		r.clear()
 		r.stage = update.Stage
+		r.indeterminate = update.Indeterminate
 		r.bar = r.newBar(update, total)
 	} else if r.bar.GetMax64() != int64(total) {
 		r.bar.ChangeMax64(int64(total))
 	}
 	_ = r.bar.Set64(int64(completed))
-	if completed == total {
+	if !update.Indeterminate && completed == total {
 		r.bar = nil
 	}
 }
@@ -71,6 +73,9 @@ func (r *Renderer) newBar(update app.ProgressUpdate, total int) *progressbar.Pro
 		update.Stages,
 		update.Description,
 	)
+	if update.Indeterminate {
+		total = -1
+	}
 	return progressbar.NewOptions(total,
 		progressbar.OptionSetWriter(r.writer),
 		progressbar.OptionEnableColorCodes(true),
@@ -84,13 +89,20 @@ func (r *Renderer) newBar(update app.ProgressUpdate, total int) *progressbar.Pro
 			BarStart:      "[",
 			BarEnd:        "]",
 		}),
-		progressbar.OptionOnCompletion(func() { _, _ = fmt.Fprintln(r.writer) }),
+		progressbar.OptionOnCompletion(func() {
+			if !update.Indeterminate {
+				_, _ = fmt.Fprintln(r.writer)
+			}
+		}),
 	)
 }
 
 func (r *Renderer) clear() {
 	if r.bar != nil {
 		_ = r.bar.Clear()
+		if r.indeterminate {
+			_ = r.bar.Exit()
+		}
 		r.bar = nil
 	}
 }

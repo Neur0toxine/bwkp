@@ -42,17 +42,32 @@ func TestExportRetriesTOTPDownloadsAttachmentsAndWrites(t *testing.T) {
 		t.Fatalf("progress updates = %+v", progress.updates)
 	}
 	last := progress.updates[len(progress.updates)-1]
-	if last.Stage != 2 || last.Completed != last.Total || last.Total != 2 {
+	if last.Stage != 3 || last.Completed != last.Total || last.Total != 1 {
 		t.Fatalf("final progress = %+v", last)
 	}
+	foundConversionComplete := false
+	foundSync := false
+	foundWriting := false
 	foundDownloaded := false
 	for _, update := range progress.updates {
+		if update.Stage == 1 && update.Indeterminate {
+			foundSync = true
+		}
 		if update.Stage == 1 && update.Completed == 2 && update.Total == 2 {
 			foundDownloaded = true
+		}
+		if update.Stage == 2 && update.Completed == 1 && update.Total == 1 {
+			foundConversionComplete = true
+		}
+		if update.Stage == 3 && update.Indeterminate {
+			foundWriting = true
 		}
 	}
 	if !foundDownloaded {
 		t.Fatalf("attachment completion missing from %+v", progress.updates)
+	}
+	if !foundSync || !foundConversionComplete || !foundWriting {
+		t.Fatalf("sync, conversion, or writing progress missing from %+v", progress.updates)
 	}
 	if !allZero(password) || !allZero(dbPassword) {
 		t.Fatal("credentials were not cleared")

@@ -21,11 +21,12 @@ type VaultConverter interface {
 type TOTPProvider func(context.Context) (string, error)
 
 type ProgressUpdate struct {
-	Stage       int
-	Stages      int
-	Description string
-	Completed   int
-	Total       int
+	Stage         int
+	Stages        int
+	Description   string
+	Completed     int
+	Total         int
+	Indeterminate bool
 }
 
 type ProgressReporter interface {
@@ -76,37 +77,49 @@ func (e *Exporter) Export(ctx context.Context, request Request) (report convert.
 	}
 	defer func() { err = errors.Join(err, session.Close()) }()
 
-	reportProgress(request.Progress, ProgressUpdate{Stage: 1, Stages: 2, Description: "Downloading vault...", Total: 1})
+	reportProgress(request.Progress, ProgressUpdate{
+		Stage: 1, Stages: 3, Description: "Downloading vault...", Indeterminate: true,
+	})
 	vault, err := session.Sync(ctx)
 	if err != nil {
 		return report, fmt.Errorf("sync vault: %w", err)
 	}
 	attachmentCount := countAttachments(vault)
 	reportProgress(request.Progress, ProgressUpdate{
-		Stage: 1, Stages: 2, Description: "Downloading vault...", Completed: 1, Total: 1 + attachmentCount,
+		Stage: 1, Stages: 3, Description: "Downloading vault...", Completed: 1, Total: 1 + attachmentCount,
 	})
 	if err := downloadAttachments(ctx, session, &vault, func(completed int) {
 		reportProgress(request.Progress, ProgressUpdate{
-			Stage: 1, Stages: 2, Description: "Downloading vault...", Completed: 1 + completed, Total: 1 + attachmentCount,
+			Stage: 1, Stages: 3, Description: "Downloading vault...", Completed: 1 + completed, Total: 1 + attachmentCount,
 		})
 	}); err != nil {
 		return report, err
 	}
-	conversionTotal := len(vault.Items) + 1
-	reportProgress(request.Progress, ProgressUpdate{Stage: 2, Stages: 2, Description: "Converting entries...", Total: conversionTotal})
+	conversionTotal := max(len(vault.Items), 1)
+	reportProgress(request.Progress, ProgressUpdate{Stage: 2, Stages: 3, Description: "Converting entries...", Total: conversionTotal})
+	conversionCompleted := 0
 	database, report, err := convertVault(e.converter, vault, func(completed int) {
+		conversionCompleted = completed
 		reportProgress(request.Progress, ProgressUpdate{
-			Stage: 2, Stages: 2, Description: "Converting entries...", Completed: completed, Total: conversionTotal,
+			Stage: 2, Stages: 3, Description: "Converting entries...", Completed: completed, Total: conversionTotal,
 		})
 	})
 	if err != nil {
 		return convert.Report{}, err
 	}
+	if conversionCompleted < conversionTotal {
+		reportProgress(request.Progress, ProgressUpdate{
+			Stage: 2, Stages: 3, Description: "Converting entries...", Completed: conversionTotal, Total: conversionTotal,
+		})
+	}
+	reportProgress(request.Progress, ProgressUpdate{
+		Stage: 3, Stages: 3, Description: "Writing encrypted database...", Indeterminate: true,
+	})
 	if err := e.writer.WriteFile(ctx, request.Output, database, request.Credentials, request.Options, request.Force); err != nil {
 		return convert.Report{}, fmt.Errorf("write KDBX: %w", err)
 	}
 	reportProgress(request.Progress, ProgressUpdate{
-		Stage: 2, Stages: 2, Description: "Converting entries...", Completed: conversionTotal, Total: conversionTotal,
+		Stage: 3, Stages: 3, Description: "Writing encrypted database...", Completed: 1, Total: 1,
 	})
 	return report, nil
 }
