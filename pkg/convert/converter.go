@@ -32,6 +32,10 @@ type Converter struct{}
 func New() *Converter { return &Converter{} }
 
 func (c *Converter) Convert(vault bw.Vault) (kp.Database, Report, error) {
+	return c.ConvertWithProgress(vault, nil)
+}
+
+func (c *Converter) ConvertWithProgress(vault bw.Vault, progress func(completed, total int)) (kp.Database, Report, error) {
 	db := kp.Database{
 		Name: "Bitwarden Export",
 		Root: kp.Group{Name: "Bitwarden Export"},
@@ -46,7 +50,7 @@ func (c *Converter) Convert(vault bw.Vault) (kp.Database, Report, error) {
 	})
 
 	report := Report{Items: len(items)}
-	for _, item := range items {
+	for index, item := range items {
 		entries, err := c.convertItem(item)
 		if err != nil {
 			return kp.Database{}, Report{}, fmt.Errorf("convert item %q (%s): %w", item.Name, item.ID, err)
@@ -60,6 +64,9 @@ func (c *Converter) Convert(vault bw.Vault) (kp.Database, Report, error) {
 		}
 		if item.Login != nil {
 			report.Passkeys += len(item.Login.FIDO2Credentials)
+		}
+		if progress != nil {
+			progress(index+1, len(items))
 		}
 	}
 

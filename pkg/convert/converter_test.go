@@ -46,6 +46,25 @@ func TestConvertLoginPreservesFunctionalityAndSource(t *testing.T) {
 	}
 }
 
+func TestConvertReportsItemProgress(t *testing.T) {
+	vault := bw.Vault{Items: []bw.Item{
+		{ID: "b", Type: bw.ItemTypeSecureNote, Name: "Second"},
+		{ID: "a", Type: bw.ItemTypeSecureNote, Name: "First"},
+	}}
+	var updates [][2]int
+
+	_, _, err := convert.New().ConvertWithProgress(vault, func(completed, total int) {
+		updates = append(updates, [2]int{completed, total})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]int{{1, 2}, {2, 2}}
+	if len(updates) != len(want) || updates[0] != want[0] || updates[1] != want[1] {
+		t.Fatalf("progress = %v, want %v", updates, want)
+	}
+}
+
 func TestConvertSplitsMultiplePasskeys(t *testing.T) {
 	key := base64.RawURLEncoding.EncodeToString([]byte{1, 2, 3, 4})
 	vault := bw.Vault{Items: []bw.Item{{

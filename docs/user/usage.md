@@ -19,6 +19,10 @@ the server requires it, synchronizes the complete vault, downloads and decrypts
 attachments in memory, writes an encrypted candidate, reopens it through
 KeePassXC, then atomically installs the requested file. No session is reused.
 
+Interactive terminals show two progress bars for vault/attachment downloads
+and entry/KDBX conversion. Progress is automatically suppressed when standard
+error is redirected; use `--no-progress` to disable it explicitly.
+
 Existing files are refused. Add `--force` to replace one after the new database
 has been written and verified.
 

@@ -14,6 +14,7 @@ import (
 	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/app"
 	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/buildinfo"
 	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/native"
+	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/progress"
 	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/prompt"
 	"github.com/Neur0toxine/bitwarden-keepass-exporter/internal/security"
 	"github.com/Neur0toxine/bitwarden-keepass-exporter/pkg/bwapi"
@@ -53,7 +54,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.SetOutput(c.stderr)
 	var region, server, apiURL, identityURL, caCert, email, output string
 	var masterPasswordFile, totpFile, databasePasswordFile, keyFile string
-	var force, keyFileOnly bool
+	var force, keyFileOnly, noProgress bool
 	var cipher, compression string
 	var memory uint64
 	var iterations uint64
@@ -72,6 +73,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.StringVar(&databasePasswordFile, "database-password-file", "", "read the database password from a file")
 	flags.StringVar(&keyFile, "key-file", "", "use an existing KeePass key file")
 	flags.BoolVar(&keyFileOnly, "key-file-only", false, "do not add a database password")
+	flags.BoolVar(&noProgress, "no-progress", false, "disable interactive progress bars")
 	flags.StringVar(&cipher, "cipher", string(kpdb.CipherAES256), "KDBX cipher: aes256 or chacha20")
 	flags.StringVar(&compression, "compression", string(kpdb.CompressionGZip), "KDBX compression: gzip or none")
 	flags.Uint64Var(&memory, "kdf-memory-kib", 64*1024, "Argon2id memory in KiB")
@@ -126,11 +128,13 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 		options.TargetTime = target
 	}
 
+	progressRenderer := progress.NewTerminal(c.stderr, !noProgress)
+	defer progressRenderer.Close()
 	exporter := app.New(bwapi.NewNativeClient(), convert.New(), kpdb.NewNativeWriter())
 	report, err := exporter.Export(ctx, app.Request{
 		Login:  bwapi.LoginRequest{Endpoints: endpoints, Email: email, MasterPassword: masterPassword},
 		TOTP:   func(context.Context) (string, error) { return prompt.Code("Authenticator code", totpFile) },
-		Output: output, Force: force, Credentials: credentials, Options: options,
+		Output: output, Force: force, Credentials: credentials, Options: options, Progress: progressRenderer,
 	})
 	if err != nil {
 		return err

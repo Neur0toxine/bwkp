@@ -20,13 +20,14 @@ func TestExportRetriesTOTPDownloadsAttachmentsAndWrites(t *testing.T) {
 		Attachments: []bw.Attachment{{ID: "attachment", FileName: "file.bin"}},
 	}}}}}
 	writer := &fakeWriter{}
+	progress := &fakeProgress{}
 	exporter := New(client, convert.New(), writer)
 	password := []byte("master")
 	dbPassword := []byte("database")
 	report, err := exporter.Export(t.Context(), Request{
 		Login:  bwapi.LoginRequest{Email: "a@example.test", MasterPassword: password},
 		TOTP:   func(context.Context) (string, error) { return "123456", nil },
-		Output: "vault.kdbx", Credentials: kpdb.Credentials{Password: dbPassword}, Options: kpdb.DefaultOptions(),
+		Output: "vault.kdbx", Credentials: kpdb.Credentials{Password: dbPassword}, Options: kpdb.DefaultOptions(), Progress: progress,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -36,6 +37,22 @@ func TestExportRetriesTOTPDownloadsAttachmentsAndWrites(t *testing.T) {
 	}
 	if report.Attachments != 1 || !writer.called {
 		t.Fatalf("report=%+v writer=%v", report, writer.called)
+	}
+	if len(progress.updates) < 5 {
+		t.Fatalf("progress updates = %+v", progress.updates)
+	}
+	last := progress.updates[len(progress.updates)-1]
+	if last.Stage != 2 || last.Completed != last.Total || last.Total != 2 {
+		t.Fatalf("final progress = %+v", last)
+	}
+	foundDownloaded := false
+	for _, update := range progress.updates {
+		if update.Stage == 1 && update.Completed == 2 && update.Total == 2 {
+			foundDownloaded = true
+		}
+	}
+	if !foundDownloaded {
+		t.Fatalf("attachment completion missing from %+v", progress.updates)
 	}
 	if !allZero(password) || !allZero(dbPassword) {
 		t.Fatal("credentials were not cleared")
@@ -95,6 +112,13 @@ func (w *fakeWriter) WriteFile(context.Context, string, kp.Database, kpdb.Creden
 	w.called = true
 	return nil
 }
+
+type fakeProgress struct{ updates []ProgressUpdate }
+
+func (p *fakeProgress) Update(update ProgressUpdate) {
+	p.updates = append(p.updates, update)
+}
+
 func allZero(values []byte) bool {
 	for _, value := range values {
 		if value != 0 {
