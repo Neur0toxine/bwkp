@@ -26,6 +26,11 @@ error is redirected; use `--no-progress` to disable it explicitly.
 Existing files are refused. Add `--force` to replace one after the new database
 has been written and verified.
 
+By default, protected `BW.*` attributes are added only for Bitwarden data that
+has no exact KeePassXC representation. Add `--append-source` to append every
+entry's complete protected source JSON and source identity metadata for archival
+or future recovery purposes.
+
 ## Non-interactive secrets
 
 Use `--master-password-file`, `--totp-file`, and

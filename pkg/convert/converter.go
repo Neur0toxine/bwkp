@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Neur0toxine/bwkp/pkg/dto/bw"
 	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
@@ -27,9 +28,17 @@ type Report struct {
 	Passkeys    int
 }
 
-type Converter struct{}
+type Options struct {
+	AppendSource bool
+}
+
+type Converter struct {
+	options Options
+}
 
 func New() *Converter { return &Converter{} }
+
+func NewWithOptions(options Options) *Converter { return &Converter{options: options} }
 
 func (c *Converter) Convert(vault bw.Vault) (kp.Database, Report, error) {
 	return c.ConvertWithProgress(vault, nil)
@@ -121,8 +130,11 @@ func (c *Converter) convertItem(item bw.Item) ([]kp.Entry, error) {
 	mapCustomFields(&entry, item.Fields)
 	mapAttachments(&entry, item.Attachments)
 	mapHistory(&entry, item.PasswordHistory)
-	if err := addSourceMetadata(&entry, item); err != nil {
-		return nil, err
+	addUnconvertedMetadata(&entry, item)
+	if c.options.AppendSource {
+		if err := addSourceMetadata(&entry, item); err != nil {
+			return nil, err
+		}
 	}
 
 	if item.Login == nil || len(item.Login.FIDO2Credentials) == 0 {
@@ -151,6 +163,11 @@ func mapLogin(entry *kp.Entry, login bw.Login) {
 		entry.URL = login.URIs[0].URI
 		for i, uri := range login.URIs[1:] {
 			entry.Fields[fmt.Sprintf("KP2A_URL_%d", i+1)] = kp.Value{Value: uri.URI}
+		}
+		for i, uri := range login.URIs {
+			if uri.Match != nil {
+				entry.Fields[fmt.Sprintf("BW.URIMatch.%d", i+1)] = protected(strconv.Itoa(*uri.Match))
+			}
 		}
 	}
 	if login.TOTP != "" {
@@ -223,9 +240,10 @@ func mapCustomFields(entry *kp.Entry, fields []bw.Field) {
 		name = uniqueFieldName(entry.Fields, name)
 		entry.Fields[name] = kp.Value{Value: field.Value, Protected: field.Type == 1}
 		if field.Linked != nil {
-			entry.Fields[uniqueFieldName(entry.Fields, "BW.LinkedField."+name)] = kp.Value{
-				Value: strconv.Itoa(*field.Linked), Protected: true,
-			}
+			entry.Fields[uniqueFieldName(entry.Fields, "BW.LinkedField."+name)] = protected(strconv.Itoa(*field.Linked))
+		}
+		if field.Type > 1 {
+			entry.Fields[uniqueFieldName(entry.Fields, "BW.FieldType."+name)] = protected(strconv.Itoa(field.Type))
 		}
 	}
 }
@@ -268,6 +286,13 @@ func mapPasskey(entry *kp.Entry, credential bw.FIDO2Credential) error {
 	entry.Fields["KPEX_PASSKEY_USERNAME"] = kp.Value{Value: credential.UserName}
 	entry.Fields["KPEX_PASSKEY_RELYING_PARTY"] = kp.Value{Value: credential.RPID}
 	entry.Fields["KPEX_PASSKEY_USER_HANDLE"] = kp.Value{Value: credential.UserHandle, Protected: true}
+	addProtectedSource(entry, "BW.Passkey.RPName", credential.RPName)
+	addProtectedSource(entry, "BW.Passkey.UserDisplayName", credential.UserDisplayName)
+	addProtectedSource(entry, "BW.Passkey.Counter", credential.Counter)
+	addProtectedSource(entry, "BW.Passkey.Discoverable", credential.Discoverable)
+	if !credential.CreationDate.IsZero() {
+		addProtectedSource(entry, "BW.Passkey.CreationDate", credential.CreationDate.Format(time.RFC3339Nano))
+	}
 	return nil
 }
 
@@ -317,6 +342,33 @@ func addSourceMetadata(entry *kp.Entry, item bw.Item) error {
 		}
 	}
 	return nil
+}
+
+func addUnconvertedMetadata(entry *kp.Entry, item bw.Item) {
+	if item.Reprompt {
+		addProtectedSource(entry, "BW.Reprompt", "true")
+	}
+	if len(item.CollectionIDs) > 1 {
+		if encoded, err := json.Marshal(item.CollectionIDs); err == nil {
+			addProtectedSource(entry, "BW.CollectionIDs", string(encoded))
+		}
+	}
+	if item.DeletedDate != nil {
+		addProtectedSource(entry, "BW.DeletedDate", item.DeletedDate.Format(time.RFC3339Nano))
+	}
+	if item.ArchivedDate != nil {
+		addProtectedSource(entry, "BW.ArchivedDate", item.ArchivedDate.Format(time.RFC3339Nano))
+	}
+}
+
+func addProtectedSource(entry *kp.Entry, name, value string) {
+	if value != "" {
+		entry.Fields[name] = protected(value)
+	}
+}
+
+func protected(value string) kp.Value {
+	return kp.Value{Value: value, Protected: true}
 }
 
 func addProtected(entry *kp.Entry, name, value string) {

@@ -54,7 +54,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.SetOutput(c.stderr)
 	var region, server, apiURL, identityURL, caCert, email, output string
 	var masterPasswordFile, totpFile, databasePasswordFile, keyFile string
-	var force, keyFileOnly, noProgress bool
+	var force, keyFileOnly, noProgress, appendSource bool
 	var cipher, compression string
 	var memory uint64
 	var iterations uint64
@@ -74,6 +74,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	flags.StringVar(&keyFile, "key-file", "", "use an existing KeePass key file")
 	flags.BoolVar(&keyFileOnly, "key-file-only", false, "do not add a database password")
 	flags.BoolVar(&noProgress, "no-progress", false, "disable interactive progress bars")
+	flags.BoolVar(&appendSource, "append-source", false, "append complete protected Bitwarden source metadata")
 	flags.StringVar(&cipher, "cipher", string(kpdb.CipherAES256), "KDBX cipher: aes256 or chacha20")
 	flags.StringVar(&compression, "compression", string(kpdb.CompressionGZip), "KDBX compression: gzip or none")
 	flags.Uint64Var(&memory, "kdf-memory-kib", 64*1024, "Argon2id memory in KiB")
@@ -130,7 +131,7 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 
 	progressRenderer := progress.NewTerminal(c.stderr, !noProgress)
 	defer progressRenderer.Close()
-	exporter := app.New(bwapi.NewNativeClient(), convert.New(), kpdb.NewNativeWriter())
+	exporter := app.New(bwapi.NewNativeClient(), convert.NewWithOptions(convert.Options{AppendSource: appendSource}), kpdb.NewNativeWriter())
 	report, err := exporter.Export(ctx, app.Request{
 		Login:  bwapi.LoginRequest{Endpoints: endpoints, Email: email, MasterPassword: masterPassword},
 		TOTP:   func(context.Context) (string, error) { return prompt.Code("Authenticator code", totpFile) },

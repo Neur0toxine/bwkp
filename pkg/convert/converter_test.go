@@ -11,7 +11,7 @@ import (
 	"github.com/Neur0toxine/bwkp/pkg/dto/kp"
 )
 
-func TestConvertLoginPreservesFunctionalityAndSource(t *testing.T) {
+func TestConvertLoginOmitsConvertedSourceMetadataByDefault(t *testing.T) {
 	now := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
 	match := 1
 	vault := bw.Vault{
@@ -41,8 +41,36 @@ func TestConvertLoginPreservesFunctionalityAndSource(t *testing.T) {
 	if !entry.Fields["otp"].Protected || !strings.HasPrefix(entry.Fields["otp"].Value, "otpauth://") {
 		t.Fatalf("TOTP not mapped: %+v", entry.Fields["otp"])
 	}
+	if _, exists := entry.Fields["BW.SourceJSON"]; exists {
+		t.Fatal("source JSON should require AppendSource")
+	}
+	if _, exists := entry.Fields["BW.ItemID"]; exists {
+		t.Fatal("source identity should require AppendSource")
+	}
+	if matchField := entry.Fields["BW.URIMatch.1"]; matchField.Value != "1" || !matchField.Protected {
+		t.Fatalf("unconverted URI match metadata = %+v", matchField)
+	}
+}
+
+func TestConvertAppendsCompleteSourceMetadataWhenRequested(t *testing.T) {
+	vault := bw.Vault{Items: []bw.Item{{
+		ID: "item", FolderID: "folder", CollectionIDs: []string{"collection"},
+		Type: bw.ItemTypeSecureNote, Name: "Source",
+	}}}
+
+	db, _, err := convert.NewWithOptions(convert.Options{AppendSource: true}).Convert(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := db.Root.Groups[0].Groups[0].Entries[0]
 	if !entry.Fields["BW.SourceJSON"].Protected || !strings.Contains(entry.Fields["BW.SourceJSON"].Value, `"id":"item"`) {
 		t.Fatal("protected source JSON missing")
+	}
+	if entry.Fields["BW.ItemID"].Value != "item" || entry.Fields["BW.FolderID"].Value != "folder" {
+		t.Fatalf("source identity metadata missing: %+v", entry.Fields)
+	}
+	if entry.Fields["BW.CollectionIDs"].Value != `["collection"]` {
+		t.Fatalf("collection metadata = %q", entry.Fields["BW.CollectionIDs"].Value)
 	}
 }
 
@@ -70,7 +98,7 @@ func TestConvertSplitsMultiplePasskeys(t *testing.T) {
 	vault := bw.Vault{Items: []bw.Item{{
 		ID: "item", Type: bw.ItemTypeLogin, Name: "Passkeys", Login: &bw.Login{
 			FIDO2Credentials: []bw.FIDO2Credential{
-				{CredentialID: "0102", KeyValue: key, RPID: "example.test", UserName: "one"},
+				{CredentialID: "0102", KeyValue: key, RPID: "example.test", RPName: "Example", UserName: "one", UserDisplayName: "One User", Counter: "4"},
 				{CredentialID: "0304", KeyValue: key, RPID: "example.test", UserName: "two"},
 			},
 		},
@@ -89,6 +117,9 @@ func TestConvertSplitsMultiplePasskeys(t *testing.T) {
 	if !strings.Contains(entries[0].Fields["KPEX_PASSKEY_PRIVATE_KEY_PEM"].Value, "BEGIN PRIVATE KEY") {
 		t.Fatal("private key was not converted to PEM")
 	}
+	if entries[0].Fields["BW.Passkey.RPName"].Value != "Example" || entries[0].Fields["BW.Passkey.Counter"].Value != "4" {
+		t.Fatalf("unconverted passkey metadata missing: %+v", entries[0].Fields)
+	}
 }
 
 func TestConvertOrganizationTrashUsesCollection(t *testing.T) {
@@ -106,6 +137,9 @@ func TestConvertOrganizationTrashUsesCollection(t *testing.T) {
 	if entry.Title != "Deleted" {
 		t.Fatalf("title = %q", entry.Title)
 	}
+	if entry.Fields["BW.CollectionIDs"].Value != `["b","a"]` || entry.Fields["BW.DeletedDate"].Value == "" {
+		t.Fatalf("unconverted membership metadata missing: %+v", entry.Fields)
+	}
 }
 
 func TestConvertRejectsUnknownType(t *testing.T) {
@@ -121,7 +155,7 @@ func TestConvertMapsSpecializedItemsAndDuplicateData(t *testing.T) {
 		{ID: "card", Type: bw.ItemTypeCard, Name: "Card", Card: &bw.Card{CardholderName: "Alice", Number: "4111", Code: "123"}},
 		{ID: "identity", Type: bw.ItemTypeIdentity, Name: "Identity", Identity: &bw.Identity{FirstName: "Alice", Email: "alice@example.test"}},
 		{ID: "ssh", Type: bw.ItemTypeSSHKey, Name: "SSH", SSHKey: &bw.SSHKey{PrivateKey: "PRIVATE", PublicKey: "PUBLIC", Fingerprint: "SHA256:test"}, Attachments: []bw.Attachment{{FileName: "id_ssh", Content: []byte("collision")}}},
-		{ID: "bank", Type: bw.ItemTypeBankAccount, Name: "Bank", Data: map[string]any{"accountNumber": "123"}, Fields: []bw.Field{{Name: "duplicate", Value: "one"}, {Name: "duplicate", Value: "two", Type: 1, Linked: &linked}, {Value: "unnamed"}}},
+		{ID: "bank", Type: bw.ItemTypeBankAccount, Name: "Bank", Reprompt: true, Data: map[string]any{"accountNumber": "123"}, Fields: []bw.Field{{Name: "duplicate", Value: "one"}, {Name: "duplicate", Value: "two", Type: 1, Linked: &linked}, {Value: "unnamed", Type: 2}}},
 	}}
 	db, report, err := convert.New().Convert(vault)
 	if err != nil {
@@ -146,6 +180,9 @@ func TestConvertMapsSpecializedItemsAndDuplicateData(t *testing.T) {
 	}
 	if byTitle["Bank"].Fields["duplicate (2)"].Value != "two" || byTitle["Bank"].Fields["Bitwarden Field 3"].Value != "unnamed" {
 		t.Fatal("custom fields not preserved")
+	}
+	if byTitle["Bank"].Fields["BW.Reprompt"].Value != "true" || byTitle["Bank"].Fields["BW.LinkedField.duplicate (2)"].Value != "7" || byTitle["Bank"].Fields["BW.FieldType.Bitwarden Field 3"].Value != "2" {
+		t.Fatalf("unconverted source semantics missing: %+v", byTitle["Bank"].Fields)
 	}
 }
 
