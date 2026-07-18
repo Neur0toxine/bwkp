@@ -14,6 +14,7 @@ termux_step_pre_configure() {
 	termux_setup_golang
 	TERMUX_RUST_VERSION=1.93.1
 	termux_setup_rust
+	termux_setup_cmake
 
 	export BWKP_STATIC_PREFIX="$BWKP_SOURCE_ROOT/target/static"
 	"$BWKP_SOURCE_ROOT/build/static-dependencies.sh"

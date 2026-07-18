@@ -61,7 +61,7 @@ func Build() error {
 	if err := sh.RunWithV(buildEnvironment, "go", "build", "-a", "-trimpath", "-tags", "native", "-ldflags", ldflags, "-o", output, "./cmd/bwkp"); err != nil {
 		return err
 	}
-	if err := sh.RunV("build/verify-linkage.sh", output); err != nil {
+	if err := sh.RunV("bash", "build/verify-linkage.sh", output); err != nil {
 		return err
 	}
 	return packBinary(output)
@@ -109,7 +109,7 @@ func staticBuildEnvironment() (map[string]string, error) {
 	environment["BWKP_STATIC_PREFIXES"] = strings.Join(prefixes, ";")
 	environment["PKG_CONFIG_PATH"] = strings.Join(pkgConfigPaths, string(os.PathListSeparator))
 	environment["CGO_LDFLAGS"] = strings.Join(linkerPaths, " ")
-	if err := sh.RunWithV(environment, "build/static-dependencies.sh"); err != nil {
+	if err := sh.RunWithV(environment, "bash", "build/static-dependencies.sh"); err != nil {
 		return nil, err
 	}
 	return environment, nil
@@ -264,7 +264,7 @@ func buildAndroid(termuxArch, artifactArch string) error {
 	if err := copyFile(source, output, 0o755); err != nil {
 		return err
 	}
-	if err := sh.RunV("build/verify-linkage.sh", output, "android"); err != nil {
+	if err := sh.RunV("bash", "build/verify-linkage.sh", output, "android"); err != nil {
 		return err
 	}
 	return packBinary(output)
