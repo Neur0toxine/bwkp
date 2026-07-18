@@ -34,7 +34,7 @@ case "$(uname -s)" in
     fi
     ;;
   MINGW*|MSYS*)
-    allowed='^(ADVAPI32|bcrypt|CRYPT32|DNSAPI|IPHLPAPI|KERNEL32|msvcrt|mswsock|ntdll|ole32|OLEAUT32|POWRPROF|RPCRT4|SHELL32|ucrtbase|USER32|USERENV|VERSION|WINMM|WS2_32|api-ms-win-[A-Za-z0-9-]+)\.dll$'
+    allowed='^(ADVAPI32|bcrypt|bcryptprimitives|CRYPT32|DNSAPI|IPHLPAPI|KERNEL32|msvcrt|mswsock|NETAPI32|ntdll|ole32|OLEAUT32|POWRPROF|RPCRT4|SHELL32|ucrtbase|USER32|USERENV|VERSION|WINMM|WS2_32|api-ms-win-[A-Za-z0-9-]+)\.dll$'
     unexpected=$(objdump -p "$binary" | sed -n 's/^\s*DLL Name: //p' | grep -Eiv "$allowed" || true)
     if [[ -n "$unexpected" ]]; then
       echo "unexpected non-system Windows dependencies:" >&2

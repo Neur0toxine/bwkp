@@ -140,6 +140,14 @@ build_qt() {
     7b632550ea1048fc10c741e46e2e3b093e5ca94dfa6209e9e0848800e247023b
   local source="$sources/qtbase-$qt_version"
   extract "$downloads/qtbase-$qt_version.tar.xz" "$source" configure
+  # The Termux cross mkspec does not define Android's dynamic-library suffix.
+  # Static Qt does not need it, so only use it when a mkspec supplies it.
+  if ! grep -q 'defined(Q_OS_ANDROID) && defined(LIBS_SUFFIX)' "$source/src/corelib/plugin/qlibrary_unix.cpp"; then
+    sed -i.bwkp \
+      's/# ifdef Q_OS_ANDROID/# if defined(Q_OS_ANDROID) \&\& defined(LIBS_SUFFIX)/' \
+      "$source/src/corelib/plugin/qlibrary_unix.cpp"
+    rm -f "$source/src/corelib/plugin/qlibrary_unix.cpp.bwkp"
+  fi
   mkdir -p "$source/build"
   pushd "$source/build" >/dev/null
   local platform=()
@@ -152,7 +160,7 @@ build_qt() {
     fi
     platform=(-xplatform termux-cross -hostprefix "$source/host")
   fi
-  ../configure -prefix "$prefix" ${platform[@]+"${platform[@]}"} -opensource -confirm-license -release -static \
+  "$source/configure" -prefix "$prefix" ${platform[@]+"${platform[@]}"} -opensource -confirm-license -release -static \
     -nomake examples -nomake tests -no-gui -no-widgets -no-dbus -no-glib \
     -no-icu -no-openssl -no-cups -no-feature-network -no-feature-zstd \
     -qt-doubleconversion -qt-pcre -system-zlib \
