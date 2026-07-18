@@ -60,10 +60,34 @@ packages from its active index, so x86 builds must first run
 `build/install-msys2-x86-dependencies.sh` to install the pinned archived
 dependency set used by CI and releases.
 
+Run Windows builds from the matching MSYS2 shell. The architecture settings are:
+
+| MSYS2 environment | `GOARCH` | `CARGO_BUILD_TARGET` |
+| --- | --- | --- |
+| `MINGW32` | `386` | `i686-pc-windows-gnu` |
+| `MINGW64` | `amd64` | `x86_64-pc-windows-gnu` |
+| `CLANGARM64` | `arm64` | `aarch64-pc-windows-gnullvm` |
+
+For example, an x86-64 shell builds with:
+
+```text
+GOOS=windows GOARCH=amd64 \
+  CARGO_BUILD_TARGET=x86_64-pc-windows-gnu go tool mage build
+```
+
+Mage copies Cargo's target-specific static library to the stable archive path
+used by cgo before linking `dist/bwkp.exe`. To assemble a redistributable tree,
+run `build/collect-windows-runtime.sh dist/bwkp.exe package` in that same MSYS2
+environment. It uses `ldd` to copy the executable's MinGW/LLVM-MinGW DLL closure;
+the executable alone is not a complete portable Windows package.
+
 Both Intel and Apple-silicon macOS builds are native host builds. The release
 and CI matrices use separate `macos-13` Intel and `macos-14` ARM runners, so no
 cross-compilation or universal-binary merge is involved. The resulting
-`macos-amd64` and `macos-arm64` archives are selected by `Casks/bwkp.rb`.
+`macos-amd64` and `macos-arm64` archives are selected by `Casks/bwkp.rb`. CI
+also taps the checked-out repository and runs `brew audit --strict --cask` on
+both macOS architectures, so cask metadata changes are checked with the native
+builds they describe.
 
 The runtime machine also needs the corresponding shared Qt, Botan, Argon2,
 minizip, qrencode, zlib, and C++ runtime libraries. The release build embeds
@@ -108,7 +132,9 @@ build identifiers are omitted from release-style binaries. When `upx` is in
 and verifies the result. Set `BWKP_UPX=0` to leave a local build unpacked for
 profiling or executable inspection. Release and container builds install the
 pinned, checksum-verified UPX version automatically; UPX does not support the
-macOS Mach-O output format.
+macOS Mach-O output format. `build/install-upx.sh` supports x86-64 and ARM64
+Linux hosts and installs the pinned executable into a requested directory; the
+build still succeeds without UPX and reports that the binary was left unpacked.
 
 Useful verification targets are:
 

@@ -131,7 +131,11 @@ Each file is named `bwkp_vX.Y.Z_TARGET.tar.gz` and contains:
 
 Windows archives also contain the runtime DLL closure required by the
 executable. The DLLs must remain beside `bwkp.exe` unless their directories are
-otherwise present on `PATH`.
+otherwise present on `PATH`. The workflow builds each architecture in its
+matching MSYS2 environment and runs `build/collect-windows-runtime.sh` before
+archiving, so only DLLs resolved from the corresponding MINGW32, MINGW64, or
+CLANGARM64 prefix are bundled. The checksum job waits for both the Unix/macOS/
+Android matrix and this separate Windows matrix.
 
 The build injects the release version, tagged commit SHA, and UTC build time.
 `bwkp version` also preserves the pinned upstream Bitwarden SDK and KeePassXC
@@ -141,7 +145,9 @@ All builds omit linker symbols, debug tables, local source paths, and build
 identifiers. Linux and Android artifacts are additionally packed with the
 pinned, checksum-verified UPX release and tested by UPX before packaging. macOS
 Mach-O executables are stripped but remain unpacked because UPX does not support
-that format.
+that format. Windows artifacts are also left unpacked. Linux and Android release
+runners install UPX through `build/install-upx.sh`, whose host-specific archives
+and SHA-256 digests pin the compression tool as part of the release input.
 
 Every archive receives a GitHub build-provenance attestation. After all target
 jobs finish, the checksum job downloads the archives and uploads `SHA256SUMS`.
@@ -153,6 +159,12 @@ That checksum job also writes the Intel and ARM64 macOS archive digests into
 already updated the cask version in the release pull request. Until the
 first artifact release completes, the all-zero bootstrap digests intentionally
 make cask installation fail closed; they are never valid release checksums.
+The cask selects `macos-arm64` or `macos-amd64` from Homebrew's detected
+architecture and declares the shared native libraries required at runtime.
+`build/update-homebrew-cask.sh` validates both digests before editing the cask,
+and the release job skips its bot commit when the generated file is unchanged.
+The checksum job therefore needs permission to push its cask-only commit to
+`master`; branch protection must allow that automation path.
 
 ## Static linking and compatibility
 
