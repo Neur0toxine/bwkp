@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/Neur0toxine/bwkp/internal/app"
 	"github.com/k0kubun/go-ansi"
@@ -79,6 +80,8 @@ func (r *Renderer) newBar(update app.ProgressUpdate, total int) *progressbar.Pro
 	return progressbar.NewOptions(total,
 		progressbar.OptionSetWriter(r.writer),
 		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionSetSpinnerChangeInterval(0),
+		progressbar.OptionThrottle(65*time.Millisecond),
 		progressbar.OptionSetWidth(15),
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetRenderBlankState(true),
@@ -99,10 +102,10 @@ func (r *Renderer) newBar(update app.ProgressUpdate, total int) *progressbar.Pro
 
 func (r *Renderer) clear() {
 	if r.bar != nil {
-		_ = r.bar.Clear()
 		if r.indeterminate {
 			_ = r.bar.Exit()
 		}
+		_ = r.bar.Clear()
 		r.bar = nil
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Neur0toxine/bwkp/internal/app"
 	"github.com/Neur0toxine/bwkp/internal/progress"
@@ -45,11 +46,37 @@ func TestRendererUsesSpinnerForIndeterminateWork(t *testing.T) {
 	if strings.Contains(text, "%") {
 		t.Fatalf("indeterminate output contains a percentage: %q", text)
 	}
+	time.Sleep(150 * time.Millisecond)
+	if output.String() != text {
+		t.Fatalf("indeterminate output repainted in the background: before %q, after %q", text, output.String())
+	}
 
 	renderer.Update(app.ProgressUpdate{
 		Stage: 3, Stages: 3, Description: "Writing encrypted database...", Completed: 1, Total: 1,
 	})
 	renderer.Close()
+}
+
+func TestRendererThrottlesRapidProgressUpdates(t *testing.T) {
+	var output bytes.Buffer
+	renderer := progress.New(&output, true)
+	for completed := range 100 {
+		renderer.Update(app.ProgressUpdate{
+			Stage: 2, Stages: 3, Description: "Converting entries...", Completed: completed, Total: 100,
+		})
+	}
+	renderer.Update(app.ProgressUpdate{
+		Stage: 2, Stages: 3, Description: "Converting entries...", Completed: 100, Total: 100,
+	})
+	renderer.Close()
+
+	text := output.String()
+	if !strings.Contains(text, "100%") {
+		t.Fatalf("final progress output = %q", text)
+	}
+	if redraws := strings.Count(text, "\r"); redraws > 6 {
+		t.Fatalf("rapid progress updates caused %d redraws: %q", redraws, text)
+	}
 }
 
 func TestDisabledRendererWritesNothing(t *testing.T) {
