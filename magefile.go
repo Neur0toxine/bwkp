@@ -116,7 +116,13 @@ func dockerBuildxAvailable() bool {
 }
 
 func buildKeePassXC() error {
-	if err := sh.RunV("cmake", "-S", "native/kpdb", "-B", "target/keepassxc", "-DCMAKE_BUILD_TYPE=Release"); err != nil {
+	arguments := []string{"-S", "native/kpdb", "-B", "target/keepassxc", "-DCMAKE_BUILD_TYPE=Release"}
+	if runtime.GOOS == "windows" {
+		if windeployqt, err := exec.LookPath("windeployqt-qt5"); err == nil {
+			arguments = append(arguments, "-DWINDEPLOYQT_EXE="+filepath.ToSlash(windeployqt))
+		}
+	}
+	if err := sh.RunV("cmake", arguments...); err != nil {
 		return err
 	}
 	return sh.RunV("cmake", "--build", "target/keepassxc", "--config", "Release", "--target", "bwkp_kpdb", "--parallel")

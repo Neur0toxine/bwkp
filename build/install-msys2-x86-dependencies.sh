@@ -10,6 +10,7 @@ pacman --noconfirm -U \
   "$repository/mingw-w64-i686-double-conversion-3.3.1-1-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-icu-76.1-1-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-md4c-0.5.2-1-any.pkg.tar.zst" \
+  "$repository/mingw-w64-i686-boost-libs-1.90.0-3-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-boost-1.90.0-3-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-qt5-base-5.15.16%2Bkde%2Br130-2-any.pkg.tar.zst" \
   "$repository/mingw-w64-i686-qt5-tools-5.15.16-1-any.pkg.tar.zst" \
