@@ -282,13 +282,13 @@ func readOptional(path string) ([]byte, error) {
 
 func (c *CLI) version() {
 	_, _ = fmt.Fprintf(c.stdout,
-			"bwkp %s (%s, %s, %s/%s)\nDependencies:\n - KeePassXC: %s\n - Bitwarden SDK: %s\n",
-			buildinfo.Version, buildinfo.Commit, buildinfo.Date, runtime.GOOS, runtime.GOARCH,
-			native.KeePassXCVersion(), native.BitwardenSDKVersion())
+		"bwkp %s (%s, %s, %s/%s)\nDependencies:\n - KeePassXC: %s\n - Bitwarden SDK: %s\n",
+		buildinfo.Version, buildinfo.Commit, buildinfo.Date, runtime.GOOS, runtime.GOARCH,
+		native.KeePassXCVersion(), native.BitwardenSDKVersion())
 }
 
 func (c *CLI) usage() {
-	_, _ = fmt.Fprintln(c.stderr, `Usage:
+	_, _ = fmt.Fprint(c.stderr, `Usage:
   bwkp export --server URL --email EMAIL --output FILE [options]
   bwkp export --region us|eu --email EMAIL --output FILE [options]
   bwkp import --server URL --email EMAIL --input FILE [options]
