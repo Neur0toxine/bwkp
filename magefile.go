@@ -257,7 +257,7 @@ func runTermuxBuilder(repository, containerName, termuxArch string, podman bool)
 		defer exec.Command("docker", "rm", "--force", containerName).Run()
 		cacheMount := "--volume " + containerName + "-cache:/home/builder/.termux-build"
 		if os.Getenv("CI") == "true" {
-			cacheMount = "--mount type=tmpfs,destination=/home/builder/.termux-build,tmpfs-mode=0777"
+			cacheMount = "--tmpfs /home/builder/.termux-build:exec,mode=1777"
 		}
 		environment := map[string]string{
 			"CONTAINER_NAME":                                    containerName,
