@@ -40,7 +40,12 @@ extract() {
   if [[ ! -f "$destination/$marker" ]]; then
     rm -rf "$destination"
     mkdir -p "$destination"
-    tar --extract --file "$archive" --directory "$destination" --strip-components=1
+    local force_local=()
+    if [[ -n "${MSYSTEM:-}" ]]; then
+      # MSYS2's GNU tar otherwise treats the drive-letter colon as a remote host.
+      force_local=(--force-local)
+    fi
+    tar ${force_local[@]+"${force_local[@]}"} --extract --file "$archive" --directory "$destination" --strip-components=1
   fi
 }
 

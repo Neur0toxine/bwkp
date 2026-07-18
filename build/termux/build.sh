@@ -17,6 +17,7 @@ termux_step_pre_configure() {
 	termux_setup_cmake
 
 	export BWKP_STATIC_PREFIX="$BWKP_SOURCE_ROOT/target/static"
+	export TERMUX_PREFIX
 	"$BWKP_SOURCE_ROOT/build/static-dependencies.sh"
 	export PKG_CONFIG_PATH="$BWKP_STATIC_PREFIX/lib/pkgconfig:$BWKP_STATIC_PREFIX/share/pkgconfig"
 	export CGO_LDFLAGS="-L$BWKP_STATIC_PREFIX/lib -lqtpcre2 -lz -lc++_static -lc++abi -lunwind -latomic -llog -ldl -lm"
