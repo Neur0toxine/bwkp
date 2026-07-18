@@ -101,6 +101,13 @@ build_botan() {
       *) echo "unsupported Botan Android architecture: $TERMUX_ARCH" >&2; return 1 ;;
     esac
     target=(--os=android --cpu="$cpu" --cc=clang --cc-bin="$CXX")
+  elif [[ -n "${MSYSTEM:-}" ]]; then
+    case "$MSYSTEM" in
+      MINGW32) target=(--os=mingw --cpu=x86_32 --cc=gcc) ;;
+      MINGW64) target=(--os=mingw --cpu=x86_64 --cc=gcc) ;;
+      CLANGARM64) target=(--os=mingw --cpu=arm64 --cc=clang) ;;
+      *) echo "unsupported Botan MSYS2 environment: $MSYSTEM" >&2; return 1 ;;
+    esac
   fi
   python3 configure.py --prefix="$prefix" --build-targets=static \
     --without-documentation --minimized-build \
