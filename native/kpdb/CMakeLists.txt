@@ -32,6 +32,11 @@ FetchContent_Declare(
     GIT_TAG "${KEEPASSXC_VERSION}"
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE
+    PATCH_COMMAND
+        "${CMAKE_COMMAND}"
+        -DANDROID_BUILD=${ANDROID}
+        -DSOURCE_DIR=<SOURCE_DIR>
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchKeePassXC.cmake"
 )
 FetchContent_MakeAvailable(keepassxc)
 

@@ -12,10 +12,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {runner: ubuntu-24.04, target: linux-amd64, binary: bwkp}
-          - {runner: ubuntu-24.04-arm, target: linux-arm64, binary: bwkp}
-          - {runner: macos-13, target: macos-amd64, binary: bwkp}
-          - {runner: macos-14, target: macos-arm64, binary: bwkp}
+          - {runner: ubuntu-24.04, target: linux-amd64, binary: bwkp, mage-target: build, dependencies: linux}
+          - {runner: ubuntu-24.04-arm, target: linux-arm64, binary: bwkp, mage-target: build, dependencies: linux}
+          - {runner: macos-13, target: macos-amd64, binary: bwkp, mage-target: build, dependencies: macos}
+          - {runner: macos-14, target: macos-arm64, binary: bwkp, mage-target: build, dependencies: macos}
+          - {runner: ubuntu-24.04, target: android-arm64, binary: bwkp-android-arm64, mage-target: "android:arm64", dependencies: android}
+          - {runner: ubuntu-24.04, target: android-armv7, binary: bwkp-android-armv7, mage-target: "android:armv7", dependencies: android}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -23,20 +25,21 @@ jobs:
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1}
-      - if: runner.os == 'Linux'
+      - if: matrix.dependencies == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes cmake g++ pkg-config qtbase5-dev qttools5-dev \
             libqt5svg5-dev libbotan-2-dev libargon2-dev libminizip-dev libqrencode-dev
-      - if: runner.os == 'macOS'
+      - if: matrix.dependencies == 'macos'
         run: |
           brew install cmake qt@5 botan argon2 minizip qrencode
           echo "PKG_CONFIG_PATH=$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
       - shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}" COMMIT="$GITHUB_SHA" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage build
+          VERSION="${GITHUB_REF_NAME#v}" COMMIT="$GITHUB_SHA" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage ${{ matrix.mage-target }}
           mkdir package
-          cp "dist/${{ matrix.binary }}" README.md LICENSE.md package/
+          cp "dist/${{ matrix.binary }}" package/bwkp
+          cp README.md LICENSE.md package/
           tar -C package -czf "bwkp_${GITHUB_REF_NAME}_${{ matrix.target }}.tar.gz" .
       - uses: actions/attest-build-provenance@v2
         with: {subject-path: "bwkp_*.tar.gz"}

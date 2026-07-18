@@ -8,6 +8,38 @@ bwkp export --help
 bwkp import --help
 ```
 
+## Android and Termux
+
+Release archives named `android-arm64` support modern 64-bit ARM Android
+devices. Archives named `android-armv7` support 32-bit ARMv7 devices and
+64-bit devices whose Android installation still provides 32-bit execution.
+These are Android/Bionic executables for the standard Termux application, not
+GNU/Linux ARM executables and not APKs.
+
+Install a current Termux release, enable its X11 package repository, and install
+the runtime libraries used by the pinned KeePassXC core:
+
+```text
+pkg update
+pkg install x11-repo
+pkg install argon2 botan3 libc++ libminizip libqrencode qt5-qtbase qt5-qtsvg zlib
+```
+
+Download and unpack the matching `bwkp_vVERSION_android-ARCH.tar.gz` release
+inside Termux, then install it in Termux's executable path:
+
+```text
+tar -xzf bwkp_vVERSION_android-arm64.tar.gz
+install -m 700 bwkp "$PREFIX/bin/bwkp"
+bwkp version
+```
+
+Use `android-armv7` in the archive name on a 32-bit ARM device. The CLI works
+normally in the Termux terminal; no graphical X11 server is needed. Keep vault
+outputs and secret files in Termux-private storage when possible. Android builds
+assume the standard `com.termux` application data prefix; repackaged Termux apps
+with a different application ID are not supported by these archives.
+
 ## Interactive export
 
 For Bitwarden cloud, select the account region:

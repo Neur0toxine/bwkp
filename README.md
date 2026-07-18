@@ -17,8 +17,8 @@ Run `bwkp version` to see both upstream versions compiled into a binary.
 
 ## Usage
 
-Download a Linux or macOS archive for x86-64 or ARM64 from GitHub Releases,
-unpack it, then run either:
+Download a Linux, macOS, or Android archive for your architecture from GitHub
+Releases, unpack it, then run either:
 
 ```text
 bwkp export --region us --email alice@example.com --output vault.kdbx
@@ -40,6 +40,8 @@ The supported build entry point is Mage:
 ```text
 go tool mage build
 go tool mage image
+go tool mage android:arm64
+go tool mage android:armv7
 go tool mage test:unit
 go tool mage test:native
 go tool mage test:e2e
@@ -50,6 +52,10 @@ go tool mage lint
 as a static C++ archive before linking `bwkp`. The host needs Go 1.26.5, Rust
 1.93.1, CMake, a C++20 compiler, and KeePassXC 2.7.12's Qt/Botan/Argon2 build
 dependencies. The Dockerfile provides a contained build environment.
+
+The Android targets use the pinned Termux package toolchain in Docker and place
+Termux-compatible binaries in `dist/`. See [the user guide](docs/user/usage.md#android-and-termux)
+for installation and runtime dependencies.
 
 `go tool mage image` builds the runtime image as `bwkp:dev` by default. It uses
 Podman when available; otherwise it uses Docker Buildx with `--load`, falling

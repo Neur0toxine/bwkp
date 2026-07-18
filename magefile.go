@@ -4,8 +4,10 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -15,6 +17,8 @@ import (
 )
 
 const golangCILintVersion = "v2.12.2"
+
+const termuxPackagesCommit = "c0294462552ec4a03633a11afd72fc903a550182"
 
 var Default = Build
 
@@ -84,6 +88,195 @@ func buildKeePassXC() error {
 		return err
 	}
 	return sh.RunV("cmake", "--build", "target/keepassxc", "--config", "Release", "--target", "bwkp_kpdb", "--parallel")
+}
+
+type Android mg.Namespace
+
+// Arm64 builds an Android arm64 binary for Termux.
+func (Android) Arm64() error { return buildAndroid("aarch64", "arm64") }
+
+// Armv7 builds an Android 32-bit ARMv7 binary for Termux.
+func (Android) Armv7() error { return buildAndroid("arm", "armv7") }
+
+// All builds both supported Termux Android architectures.
+func (Android) All() { mg.Deps(Android.Arm64, Android.Armv7) }
+
+func buildAndroid(termuxArch, artifactArch string) error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("Android builds require Docker in PATH: %w", err)
+	}
+	repository, err := os.MkdirTemp("", "bwkp-termux-packages-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(repository)
+	if err := os.Chmod(repository, 0o755); err != nil {
+		return err
+	}
+	if err := sh.RunV("git", "-C", repository, "init", "--quiet"); err != nil {
+		return err
+	}
+	if err := sh.RunV("git", "-C", repository, "remote", "add", "origin", "https://github.com/termux/termux-packages.git"); err != nil {
+		return err
+	}
+	if err := sh.RunV("git", "-C", repository, "fetch", "--depth", "1", "origin", termuxPackagesCommit); err != nil {
+		return err
+	}
+	if err := sh.RunV("git", "-C", repository, "checkout", "--quiet", "--detach", "FETCH_HEAD"); err != nil {
+		return err
+	}
+	podman, err := configureTermuxRunner(repository)
+	if err != nil {
+		return err
+	}
+	if err := copyTree("build/termux", filepath.Join(repository, "packages", "bwkp")); err != nil {
+		return err
+	}
+	if err := copySource(filepath.Join(repository, "sources", "bwkp")); err != nil {
+		return err
+	}
+	containerName := "bwkp-termux-" + termuxArch
+	if err := runTermuxBuilder(repository, containerName, termuxArch, podman); err != nil {
+		return err
+	}
+	archives, err := filepath.Glob(filepath.Join(repository, "output", "bwkp_*.deb"))
+	if err != nil {
+		return err
+	}
+	if len(archives) != 1 {
+		return fmt.Errorf("expected one Android package, found %d", len(archives))
+	}
+	packageRoot := filepath.Join(repository, "extracted")
+	if err := extractDeb(archives[0], packageRoot); err != nil {
+		return err
+	}
+	if err := os.MkdirAll("dist", 0o755); err != nil {
+		return err
+	}
+	source := filepath.Join(packageRoot, "data", "data", "com.termux", "files", "usr", "bin", "bwkp")
+	return copyFile(source, filepath.Join("dist", "bwkp-android-"+artifactArch), 0o755)
+}
+
+func extractDeb(archive, destination string) error {
+	if dpkgDeb, err := exec.LookPath("dpkg-deb"); err == nil {
+		return sh.RunV(dpkgDeb, "--extract", archive, destination)
+	}
+	bsdtar, err := exec.LookPath("bsdtar")
+	if err != nil {
+		return fmt.Errorf("extract Android package: neither dpkg-deb nor bsdtar is available")
+	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return err
+	}
+	if err := sh.RunV(bsdtar, "--extract", "--file", archive, "--directory", destination); err != nil {
+		return err
+	}
+	dataArchives, err := filepath.Glob(filepath.Join(destination, "data.tar*"))
+	if err != nil {
+		return err
+	}
+	if len(dataArchives) != 1 {
+		return fmt.Errorf("expected one data archive in Android package, found %d", len(dataArchives))
+	}
+	return sh.RunV(bsdtar, "--extract", "--file", dataArchives[0], "--directory", destination)
+}
+
+func configureTermuxRunner(repository string) (bool, error) {
+	path := filepath.Join(repository, "scripts", "run-docker.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	text := string(content)
+	if exec.Command("aa-status", "--enabled").Run() != nil {
+		text = strings.ReplaceAll(text, " --security-opt apparmor=_custom-termux-package-builder-$CONTAINER_NAME", "")
+	}
+	dockerVersion, err := exec.Command("docker", "version").CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("inspect Docker-compatible engine: %w", err)
+	}
+	return strings.Contains(string(dockerVersion), "Podman Engine"), os.WriteFile(path, []byte(text), 0o755)
+}
+
+func runTermuxBuilder(repository, containerName, termuxArch string, podman bool) error {
+	if !podman {
+		defer exec.Command("docker", "rm", "--force", containerName).Run()
+		environment := map[string]string{
+			"CONTAINER_NAME":                                    containerName,
+			"TERMUX_DOCKER_RUN_EXTRA_ARGS":                      "--volume " + containerName + "-cache:/home/builder/.termux-build",
+			"TERMUX_DOCKER_EXEC_EXTRA_ARGS":                     "--env VERSION --env COMMIT --env BUILD_DATE",
+			"TERMUX_PKG_MAKE_PROCESSES":                         strconv.Itoa(runtime.NumCPU()),
+			"TERMUX_RM_ALL_PKGS_BUILT_MARKER_AND_INSTALL_FILES": "false",
+		}
+		return sh.RunWithV(environment, filepath.Join(repository, "scripts", "run-docker.sh"), "./build-package.sh", "-a", termuxArch, "-I", "bwkp")
+	}
+	absoluteRepository, err := filepath.Abs(repository)
+	if err != nil {
+		return err
+	}
+	arguments := []string{
+		"run", "--rm", "--init",
+		"--volume", absoluteRepository + ":/home/builder/termux-packages",
+		"--volume", containerName + "-cache:/home/builder/.termux-build",
+		"--security-opt", "seccomp=" + filepath.Join(absoluteRepository, "scripts", "profile.json"),
+		"--cap-add", "CAP_SYS_ADMIN", "--device", "/dev/fuse",
+		"--user=0:0",
+		"--env", "HOME=/home/builder", "--env", "CI=true", "--env", "VERSION", "--env", "COMMIT", "--env", "BUILD_DATE",
+		"--mount", "type=tmpfs,destination=/data,tmpfs-mode=0777",
+		"ghcr.io/termux/package-builder", "./build-package.sh", "-a", termuxArch, "-I", "bwkp",
+	}
+	return sh.RunWithV(map[string]string{"TERMUX_PKG_MAKE_PROCESSES": strconv.Itoa(runtime.NumCPU())}, "docker", arguments...)
+}
+
+func copySource(destination string) error {
+	output, err := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z").Output()
+	if err != nil {
+		return err
+	}
+	for name := range strings.SplitSeq(strings.TrimSuffix(string(output), "\x00"), "\x00") {
+		if name == "" {
+			continue
+		}
+		info, err := os.Stat(name)
+		if err != nil {
+			return err
+		}
+		if err := copyFile(name, filepath.Join(destination, name), info.Mode().Perm()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyTree(source, destination string) error {
+	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		return copyFile(path, filepath.Join(destination, relative), info.Mode().Perm())
+	})
+}
+
+func copyFile(source, destination string, mode fs.FileMode) error {
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(destination, content, mode)
 }
 
 type Test mg.Namespace

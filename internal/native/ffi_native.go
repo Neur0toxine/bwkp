@@ -3,8 +3,10 @@
 package native
 
 /*
-#cgo linux pkg-config: Qt5Core Qt5Concurrent Qt5DBus Qt5Gui Qt5Network Qt5Svg Qt5Widgets
-#cgo linux LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbwkp_botan -largon2 -lminizip -lz -lstdc++ -lrt -ldl -lm -lpthread
+#cgo linux,!android pkg-config: Qt5Core Qt5Concurrent Qt5DBus Qt5Gui Qt5Network Qt5Svg Qt5Widgets
+#cgo linux,!android LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbwkp_botan -largon2 -lminizip -lz -lstdc++ -lrt -ldl -lm -lpthread
+#cgo android pkg-config: Qt5Core Qt5Concurrent Qt5DBus Qt5Gui Qt5Network Qt5Svg Qt5Widgets
+#cgo android LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbotan-3 -largon2 -lminizip -lz -lc++_shared -llog -ldl -lm
 #cgo darwin pkg-config: Qt5Core Qt5Concurrent Qt5DBus Qt5Gui Qt5Network Qt5Svg Qt5Widgets
 #cgo darwin LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbotan-3 -largon2 -lminizip -lz -lc++ -framework Security -framework CoreFoundation -framework Foundation -framework AppKit -liconv
 #cgo windows LDFLAGS: ${SRCDIR}/../../target/release/bwkp_native.lib -lbcrypt -lws2_32 -luserenv -lntdll
