@@ -1,3 +1,11 @@
+foreach(cmake_file IN ITEMS
+        "${SOURCE_DIR}/CMakeLists.txt"
+        "${SOURCE_DIR}/src/CMakeLists.txt")
+    file(READ "${cmake_file}" source)
+    string(REPLACE "\${CMAKE_SOURCE_DIR}" "${SOURCE_DIR}" source "${source}")
+    file(WRITE "${cmake_file}" "${source}")
+endforeach()
+
 if(NOT ANDROID_BUILD)
     return()
 endif()
