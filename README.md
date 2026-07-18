@@ -1,9 +1,9 @@
 # bwkp
 
-`bwkp` transfers records between Bitwarden/Vaultwarden and modern KeePassXC
-databases. It performs a fresh login for each export or import, does not use the
-Bitwarden CLI, does not keep a session, and never writes an intermediate
-plaintext export.
+`bwkp` transfers records in both directions between Bitwarden/Vaultwarden and
+modern KeePassXC databases. It performs a fresh login for each export or
+import, does not use the Bitwarden CLI, does not keep a session, and never
+writes an intermediate plaintext export.
 
 The native compatibility boundary is deliberately narrow:
 
@@ -63,9 +63,11 @@ back to classic `docker build` when Buildx is unavailable. Set `BWKP_IMAGE` and
 `VERSION` to select another image reference and version. The target fails when
 neither Podman nor Docker is installed.
 
-See the detailed guides for [architecture](docs/tech/architecture.md),
-[building and testing](docs/tech/building.md), and the
-[release lifecycle](docs/tech/release.md).
+See the detailed guides for [usage](docs/user/usage.md),
+[troubleshooting](docs/user/troubleshooting.md),
+[architecture](docs/tech/architecture.md), [data mapping](docs/tech/mapping.md),
+[security](docs/tech/security.md), [building and testing](docs/tech/building.md),
+and the [release lifecycle](docs/tech/release.md).
 
 ## License
 

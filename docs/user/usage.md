@@ -40,7 +40,7 @@ outputs and secret files in Termux-private storage when possible. Android builds
 assume the standard `com.termux` application data prefix; repackaged Termux apps
 with a different application ID are not supported by these archives.
 
-## Interactive export
+## Export
 
 For Bitwarden cloud, select the account region:
 
@@ -77,14 +77,63 @@ By default, an item that cannot be converted stops the export. Add
 remaining items to the database. Authentication, synchronization, attachment,
 and KDBX write errors remain fatal.
 
-## Non-interactive secrets
+## Import
+
+For Bitwarden cloud, select the destination account region:
+
+```text
+bwkp import --region us --email alice@example.com --input vault.kdbx
+```
+
+For Vaultwarden, provide its externally reachable base URL:
+
+```text
+bwkp import --server https://vault.example.com --email alice@example.com --input vault.kdbx
+```
+
+The database is decrypted in memory by the pinned KeePassXC core, converted,
+then written to the personal Bitwarden vault with the official SDK. Attachments
+are encrypted before upload. No decrypted database, JSON export, credential, or
+attachment is staged on disk.
+
+Interactive terminals show progress for database reading, entry conversion,
+folder and item mutations, and attachment uploads. As with export, progress is
+automatically suppressed when standard error is redirected and can be disabled
+with `--no-progress`.
+
+When a destination record already exists, `--conflict` selects one of four
+behaviors:
+
+- `skip` (default): leave the existing record unchanged.
+- `delete`: move the existing record to trash and create a replacement.
+- `duplicate`: always create another record.
+- `update`: preserve the destination ID and replace its fields and attachments.
+
+Source item ID is preferred when protected export metadata is present;
+otherwise an exact folder, item type, and title match is used. Ambiguous matches
+stop before any record is changed.
+
+Generic KeePassXC records are inferred as logins, cards, identities, SSH keys,
+or secure notes. Bitwarden source metadata restores bank accounts, driver
+licenses, and passports. An unsupported item kind is imported as a complete
+secure-note fallback and reported as a warning. Conversion failures are fatal
+unless `--allow-lossy` is supplied; that flag permits the affected entries to
+be skipped. `--append-source` adds protected `KP.SourceJSON` preservation data
+without embedding attachment bytes.
+
+## Credentials and non-interactive use
+
+Both export and import prompt for the Bitwarden master password, an
+authenticator code when required, and the KDBX password. Import asks for the
+password of the input database; export asks for the password to set on the new
+database.
 
 Use `--master-password-file`, `--totp-file`, and
 `--database-password-file`. The program rejects secret files readable by group
 or other users on Unix. `--key-file` adds an existing KeePass key file;
 `--key-file-only` omits the database password.
 
-## Database settings
+## Export database settings
 
 - `--cipher aes256|chacha20`
 - `--compression gzip|none`
@@ -130,40 +179,6 @@ Database options:
 
 Use `bwkp version` in bug reports. It prints the exporter version, commit,
 platform, KeePassXC version, and Bitwarden SDK version.
-
-## Import
-
-Import uses the same endpoint and secret flags as export, but reads an existing
-encrypted KDBX database:
-
-```text
-bwkp import --server https://vault.example.com --email alice@example.com --input vault.kdbx
-```
-
-The database is decrypted in memory by the pinned KeePassXC core, converted,
-then written to the personal Bitwarden vault with the official SDK. Attachments
-are encrypted before upload. No decrypted database, JSON export, credential, or
-attachment is staged on disk.
-
-When a destination record already exists, `--conflict` selects one of four
-behaviors:
-
-- `skip` (default): leave the existing record unchanged.
-- `delete`: move the existing record to trash and create a replacement.
-- `duplicate`: always create another record.
-- `update`: preserve the destination ID and replace its fields and attachments.
-
-Source item ID is preferred when protected export metadata is present;
-otherwise an exact folder, item type, and title match is used. Ambiguous matches
-stop before any record is changed.
-
-Generic KeePassXC records are inferred as logins, cards, identities, SSH keys,
-or secure notes. Bitwarden source metadata restores bank accounts, driver
-licenses, and passports. An unsupported item kind is imported as a complete
-secure-note fallback and reported as a warning. Conversion failures are fatal
-unless `--allow-lossy` is supplied; that flag permits the affected entries to
-be skipped. `--append-source` adds protected `KP.SourceJSON` preservation data
-without embedding attachment bytes.
 
 ## Import option reference
 

@@ -1,9 +1,9 @@
 # Security model
 
-The exporter is stateless. It does not persist a Bitwarden session, device
-token, plaintext JSON, decrypted attachment, or configuration file. The only
-disk output is a permission-restricted encrypted KDBX candidate and its final
-atomic rename.
+`bwkp` is stateless. Neither direction persists a Bitwarden session, device
+token, plaintext JSON, decrypted attachment, or configuration file. During
+export, the only disk output is a permission-restricted encrypted KDBX
+candidate and its final atomic rename. Import creates no local output.
 
 Secrets are read without terminal echo or from files checked for restrictive
 Unix permissions. Go and Rust buffers are cleared on normal return where their
@@ -28,3 +28,7 @@ Import reads KDBX through the pinned KeePassXC reader and keeps the decrypted
 tree in memory. Record encryption and attachment encryption use the official
 Bitwarden SDK. Mutation and attachment-upload requests carry the official CLI
 user-agent plus mandatory client name, version, and platform device headers.
+Import completes conversion, folder resolution, and conflict detection before
+the first mutation, but remote mutations are not transactional: a network or
+server failure can leave earlier planned changes applied. Re-running with the
+default `skip` policy is safe for items that were already created.

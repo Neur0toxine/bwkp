@@ -7,12 +7,12 @@ converter.
 ```mermaid
 flowchart LR
     CLI[cmd/bwkp + internal/cli] --> APP[internal/app]
-    APP --> API[pkg/bwapi]
-    API --> BW[native/bw: official Rust SDK]
-    APP --> CVT[pkg/convert]
-    CVT --> BDTO[pkg/dto/bw]
-    CVT --> KDTO[pkg/dto/kp]
-    APP --> DB[pkg/kpdb]
+    APP <--> API[pkg/bwapi]
+    API <--> BW[native/bw: official Rust SDK]
+    APP <--> CVT[pkg/convert]
+    CVT <--> BDTO[pkg/dto/bw]
+    CVT <--> KDTO[pkg/dto/kp]
+    APP <--> DB[pkg/kpdb]
     DB --> AF[internal/atomicfile]
     AF --> KP[native/kpdb: KeePassXC C++ core]
     DB --> KP
@@ -70,3 +70,27 @@ sequenceDiagram
 All cross-language calls exchange length-delimited JSON or byte buffers.
 Sessions are opaque Rust-owned handles. C++ and Rust catch failures at their ABI
 boundaries; foreign exceptions and panics never cross into Go.
+
+## Import sequence
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Go as Go orchestration
+    participant KP as KeePassXC core
+    participant BW as Bitwarden Rust SDK
+    User->>Go: import flags + secrets
+    Go->>KP: decrypt and parse KDBX
+    Go->>Go: deterministic conversion and conflict plan
+    Go->>BW: password login
+    BW-->>Go: authenticated or authenticator required
+    Go->>BW: retry with TOTP, remember=false
+    Go->>BW: sync destination vault
+    Go->>BW: create folders and mutate encrypted items
+    Go->>BW: encrypt and upload attachments
+    Go-->>User: created, updated, skipped, and warning counts
+```
+
+The conversion and conflict plan is completed before the first remote mutation.
+The import then applies that plan in stable order. Unlike export, import does
+not create a local output file.

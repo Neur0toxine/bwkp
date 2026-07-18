@@ -1,5 +1,11 @@
 # Data mapping
 
+Conversion in both directions is pure and deterministic under `pkg/convert`.
+Network access, native SDK types, and KDBX file-format details remain outside
+the mapping layer.
+
+## Export: Bitwarden to KeePassXC
+
 The hierarchy is source-oriented: personal folders remain under Personal;
 organization items are grouped by organization and primary collection; archive
 and trash state are explicit groups. Source metadata that has no exact
@@ -24,7 +30,9 @@ Sends are outside the vault sync/export scope. Deleted and archived ciphers are
 included. Attachment bytes never enter the JSON source field; they are added to
 the KeePassXC attachment pool directly.
 
-On import, protected `BW.SourceJSON`, `BW.ItemType`, and `BW.ItemID` metadata is
+## Import: KeePassXC to Bitwarden
+
+Protected `BW.SourceJSON`, `BW.ItemType`, and `BW.ItemID` metadata is
 used when present, while current KDBX values win over stored source values.
 URI match rules, linked/custom field kinds, reprompt, TOTP, passkeys, folders,
 archive/trash state, SSH keys, and attachments are restored. Bank, driver
@@ -37,3 +45,16 @@ types become secure notes containing all entry data and produce a warning.
 attachment names, sizes, and SHA-256 digests. It deliberately excludes
 attachment content. An actual conversion failure stops the import unless
 `--allow-lossy` permits skipping that entry.
+
+Import targets the personal vault. KeePassXC group paths become Bitwarden
+folders; the export-only top-level `Personal` and `Trash` groups are interpreted
+as vault state rather than literal folder names. Template groups are ignored.
+Favorites, archived state, trashed state, timestamps, notes, tags, custom
+fields, password history, and attachments are carried through when the target
+model supports them.
+
+Before any mutation, import resolves source IDs or exact folder/type/title
+matches and rejects ambiguity. Conflict mode then determines whether an
+existing item is skipped, moved to trash and recreated, duplicated, or updated
+in place. Folders and entries are sorted before application so the same input
+and options produce the same mutation plan.
