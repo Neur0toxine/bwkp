@@ -29,6 +29,9 @@ func Build() error {
 	if err := sh.RunV("cargo", "build", "--locked", "--release", "-p", "bwkp-native"); err != nil {
 		return err
 	}
+	if err := stageRustLibrary(); err != nil {
+		return err
+	}
 	if err := buildKeePassXC(); err != nil {
 		return err
 	}
@@ -52,6 +55,25 @@ func Build() error {
 		return err
 	}
 	return packBinary(output)
+}
+
+// stageRustLibrary gives cgo a target-independent archive path when Cargo is
+// cross-compiling a Windows release.
+func stageRustLibrary() error {
+	target := os.Getenv("CARGO_BUILD_TARGET")
+	if target == "" {
+		return nil
+	}
+	destination := filepath.Join("target", "release", "libbwkp_native.a")
+	for _, name := range []string{"libbwkp_native.a", "bwkp_native.lib"} {
+		source := filepath.Join("target", target, "release", name)
+		if _, err := os.Stat(source); err == nil {
+			return copyFile(source, destination, 0o644)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return fmt.Errorf("Cargo did not produce the bwkp-native static library for %s", target)
 }
 
 // Image builds the runtime container image, preferring Podman over Docker.

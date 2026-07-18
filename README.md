@@ -18,24 +18,33 @@ Run `bwkp version` to see both upstream versions compiled into a binary.
 ## Installation
 
 Release binaries dynamically use Qt, Botan, Argon2, minizip, QRencode, zlib,
-and the platform C/C++ runtime. Homebrew installs these libraries automatically;
-mise and manual Linux or Android installs require the matching runtime packages
-described below.
+and the platform C/C++ runtime. Windows archives include the required DLLs and
+Homebrew installs the macOS libraries automatically; mise and manual Linux or
+Android installs require the matching runtime packages described below.
 
 ### Windows
 
-Native Windows artifacts are not available yet, so there is no Chocolatey
-package. Install [WSL2](https://learn.microsoft.com/windows/wsl/install) from an
-administrator PowerShell prompt, then install the Linux release inside Ubuntu:
+Download `windows-386` for 32-bit x86, `windows-amd64` for x86-64, or
+`windows-arm64` for ARM64 from [GitHub Releases](https://github.com/Neur0toxine/bwkp/releases).
+Download `SHA256SUMS` from the same release, verify the archive in PowerShell,
+then extract it with the Windows `tar` command:
 
 ```powershell
-wsl --install -d Ubuntu
+$archive = "bwkp_v1.2.3_windows-amd64.tar.gz"
+$expected = ((Select-String -Path SHA256SUMS -SimpleMatch $archive).Line -split '\s+')[0]
+$actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+if ($actual -ne $expected) { throw "Checksum verification failed" }
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Programs\bwkp"
+tar -xzf $archive -C "$env:LOCALAPPDATA\Programs\bwkp"
+& "$env:LOCALAPPDATA\Programs\bwkp\bwkp.exe" version
+$path = [Environment]::GetEnvironmentVariable("Path", "User")
+[Environment]::SetEnvironmentVariable("Path", "$path;$env:LOCALAPPDATA\Programs\bwkp", "User")
 ```
 
-After Ubuntu starts, follow the Linux or manual instructions below. Windows
-drives are available below `/mnt`, for example `/mnt/c/Users/Alice`. A native
-Chocolatey package will only be added after the KeePassXC native binding and
-its runtime dependencies have a verified Windows build.
+Keep `bwkp.exe` and the bundled DLLs together. Add that directory to the user
+`PATH` to invoke `bwkp` from new terminals. Git Bash users can instead run the
+manual installer below; it detects all three supported Windows architectures.
+There is no Chocolatey package yet.
 
 ### Linux
 
@@ -87,7 +96,8 @@ UTM running a supported x86-64 or ARM64 Linux guest is the more plausible path.
 
 ### Manual installation
 
-The installer defaults to the latest release, detects Linux, macOS, or Termux,
+The installer defaults to the latest release, detects Windows (under Git Bash),
+Linux, macOS, or Termux,
 and verifies the selected archive against the release `SHA256SUMS`. It installs
 to `./bin` unless `-b` is provided:
 

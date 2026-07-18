@@ -112,6 +112,9 @@ The published-release workflow builds these archives:
 | Linux ARM64 | `linux-arm64` | native build on Ubuntu ARM64 |
 | macOS Intel | `macos-amd64` | native build on macOS Intel |
 | macOS Apple silicon | `macos-arm64` | native build on macOS ARM64 |
+| Windows x86 | `windows-386` | MinGW build on Windows x86-64 |
+| Windows x86-64 | `windows-amd64` | MinGW build on Windows x86-64 |
+| Windows ARM64 | `windows-arm64` | LLVM-MinGW build on Windows ARM64 |
 | Termux Android ARM64 | `android-arm64` | pinned Termux cross-builder |
 | Termux Android ARMv7 | `android-armv7` | pinned Termux cross-builder |
 
@@ -122,9 +125,13 @@ dependency documentation, and a real artifact-format check all exist.
 
 Each file is named `bwkp_vX.Y.Z_TARGET.tar.gz` and contains:
 
-- one executable named `bwkp`;
+- one executable named `bwkp` (`bwkp.exe` on Windows);
 - `README.md`;
 - `LICENSE.md`.
+
+Windows archives also contain the runtime DLL closure required by the
+executable. The DLLs must remain beside `bwkp.exe` unless their directories are
+otherwise present on `PATH`.
 
 The build injects the release version, tagged commit SHA, and UTC build time.
 `bwkp version` also preserves the pinned upstream Bitwarden SDK and KeePassXC

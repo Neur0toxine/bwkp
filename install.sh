@@ -86,11 +86,13 @@ architecture=$(uname -m)
 
 case "$architecture" in
 	x86_64|amd64) architecture=amd64 ;;
+	i386|i486|i586|i686|x86) architecture=386 ;;
 	aarch64|arm64) architecture=arm64 ;;
 	armv7l|armv7*) architecture=armv7 ;;
 esac
 
 android=false
+executable=bwkp
 case "${PREFIX:-}" in
 	*/com.termux/*) android=true ;;
 esac
@@ -110,9 +112,9 @@ else
 	case "$os/$architecture" in
 		linux/amd64|linux/arm64) target="linux-$architecture" ;;
 		darwin/amd64|darwin/arm64) target="macos-$architecture" ;;
-		msys*/*|mingw*/*|cygwin*/*)
-			echo "native Windows releases are not available; install bwkp inside WSL2" >&2
-			exit 1
+		msys*/386|msys*/amd64|msys*/arm64|mingw*/386|mingw*/amd64|mingw*/arm64|cygwin*/386|cygwin*/amd64|cygwin*/arm64)
+			target="windows-$architecture"
+			executable=bwkp.exe
 			;;
 		*)
 			echo "unsupported platform: $os/$architecture" >&2
@@ -151,17 +153,21 @@ fi
 
 mkdir "$temporary/extracted"
 tar --no-same-owner -C "$temporary/extracted" -xzf "$temporary/$archive"
-if [ ! -f "$temporary/extracted/bwkp" ]; then
-	echo "$archive does not contain bwkp" >&2
+if [ ! -f "$temporary/extracted/$executable" ]; then
+	echo "$archive does not contain $executable" >&2
 	exit 1
 fi
 
 mkdir -p "$bindir"
 if has_command install; then
-	install -m 0755 "$temporary/extracted/bwkp" "$bindir/bwkp"
+	install -m 0755 "$temporary/extracted/$executable" "$bindir/$executable"
 else
-	cp "$temporary/extracted/bwkp" "$bindir/bwkp"
-	chmod 0755 "$bindir/bwkp"
+	cp "$temporary/extracted/$executable" "$bindir/$executable"
+	chmod 0755 "$bindir/$executable"
 fi
 
-echo "Installed $bindir/bwkp ($tag, $target)" >&2
+if [ "$executable" = bwkp.exe ]; then
+	find "$temporary/extracted" -maxdepth 1 -type f -name '*.dll' -exec cp {} "$bindir/" \;
+fi
+
+echo "Installed $bindir/$executable ($tag, $target)" >&2

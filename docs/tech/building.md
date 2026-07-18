@@ -51,6 +51,15 @@ brew install cmake qt@5 botan argon2 minizip qrencode
 export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH"
 ```
 
+Windows releases use MSYS2's MINGW32, MINGW64, and CLANGARM64 environments for
+32-bit x86, x86-64, and ARM64 respectively. Install the matching prefixed
+toolchain, CMake, Ninja, Qt 5, Botan, Argon2, minizip, QRencode, and zlib
+packages, then set `GOARCH` and `CARGO_BUILD_TARGET` as shown in the release
+workflow before running `go tool mage build`. MSYS2 has removed several 32-bit
+packages from its active index, so x86 builds must first run
+`build/install-msys2-x86-dependencies.sh` to install the pinned archived
+dependency set used by CI and releases.
+
 Both Intel and Apple-silicon macOS builds are native host builds. The release
 and CI matrices use separate `macos-13` Intel and `macos-14` ARM runners, so no
 cross-compilation or universal-binary merge is involved. The resulting
