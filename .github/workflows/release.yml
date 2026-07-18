@@ -14,7 +14,7 @@ jobs:
         include:
           - {runner: ubuntu-24.04, target: linux-amd64, binary: bwkp, mage-target: build, dependencies: linux}
           - {runner: ubuntu-24.04-arm, target: linux-arm64, binary: bwkp, mage-target: build, dependencies: linux}
-          - {runner: macos-13, target: macos-amd64, binary: bwkp, mage-target: build, dependencies: macos}
+          - {runner: macos-15-intel, target: macos-amd64, binary: bwkp, mage-target: build, dependencies: macos}
           - {runner: macos-14, target: macos-arm64, binary: bwkp, mage-target: build, dependencies: macos}
           - {runner: ubuntu-24.04, target: android-arm64, binary: bwkp-android-arm64, mage-target: "android:arm64", dependencies: android}
           - {runner: ubuntu-24.04, target: android-armv7, binary: bwkp-android-armv7, mage-target: "android:armv7", dependencies: android}

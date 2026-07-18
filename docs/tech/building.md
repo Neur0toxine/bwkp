@@ -82,7 +82,7 @@ environment. It uses `ldd` to copy the executable's MinGW/LLVM-MinGW DLL closure
 the executable alone is not a complete portable Windows package.
 
 Both Intel and Apple-silicon macOS builds are native host builds. The release
-and CI matrices use separate `macos-13` Intel and `macos-14` ARM runners, so no
+and CI matrices use separate `macos-15-intel` Intel and `macos-14` ARM runners, so no
 cross-compilation or universal-binary merge is involved. The resulting
 `macos-amd64` and `macos-arm64` archives are selected by `Casks/bwkp.rb`. CI
 also taps the checked-out repository and runs `brew audit --strict --cask` on
