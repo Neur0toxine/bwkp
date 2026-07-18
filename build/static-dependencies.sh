@@ -99,7 +99,7 @@ build_botan() {
   fi
   python3 configure.py --prefix="$prefix" --build-targets=static \
     --without-documentation --minimized-build \
-    "${target[@]}" \
+    ${target[@]+"${target[@]}"} \
     --enable-modules=aes,auto_rng,cbc,chacha,ctr,gcm,hmac,salsa20,sha2_32,sha2_64,system_rng,twofish
   make -j"$jobs"
   make install
@@ -125,7 +125,7 @@ build_qt() {
     cp -R "$TERMUX_PREFIX/lib/qt/mkspecs/termux-cross" "$source/mkspecs/"
     platform=(-xplatform termux-cross -hostprefix "$source/host")
   fi
-  ../configure -prefix "$prefix" "${platform[@]}" -opensource -confirm-license -release -static \
+  ../configure -prefix "$prefix" ${platform[@]+"${platform[@]}"} -opensource -confirm-license -release -static \
     -nomake examples -nomake tests -no-gui -no-widgets -no-dbus -no-glib \
     -no-icu -no-openssl -no-cups -no-feature-network -no-feature-zstd \
     -qt-doubleconversion -qt-pcre -system-zlib \
