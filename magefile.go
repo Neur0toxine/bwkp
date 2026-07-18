@@ -262,7 +262,19 @@ func runTermuxBuilder(repository, containerName, termuxArch string, podman bool)
 			"TERMUX_PKG_MAKE_PROCESSES":                         strconv.Itoa(runtime.NumCPU()),
 			"TERMUX_RM_ALL_PKGS_BUILT_MARKER_AND_INSTALL_FILES": "false",
 		}
-		return sh.RunWithV(environment, filepath.Join(repository, "scripts", "run-docker.sh"), "./build-package.sh", "-a", termuxArch, "-I", "bwkp")
+		command := exec.Command(filepath.Join(repository, "scripts", "run-docker.sh"), "./build-package.sh", "-a", termuxArch, "-I", "bwkp")
+		command.Dir = repository
+		command.Env = os.Environ()
+		for name, value := range environment {
+			command.Env = append(command.Env, name+"="+value)
+		}
+		command.Stdin = os.Stdin
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		if err := command.Run(); err != nil {
+			return fmt.Errorf("run Termux builder: %w", err)
+		}
+		return nil
 	}
 	absoluteRepository, err := filepath.Abs(repository)
 	if err != nil {
