@@ -120,8 +120,8 @@ The published-release workflow builds these archives:
 
 These cover the popular desktop/server 64-bit architectures and both current
 64-bit ARM and legacy 32-bit ARM Termux devices. Adding a supported platform is
-not complete until its Mage target, CI build, release matrix entry, runtime
-dependency documentation, and a real artifact-format check all exist.
+not complete until its Mage target, CI build, release matrix entry, system-ABI
+policy, and a real artifact-format check all exist.
 
 Each file is named `bwkp_vX.Y.Z_TARGET.tar.gz` and contains:
 
@@ -129,13 +129,10 @@ Each file is named `bwkp_vX.Y.Z_TARGET.tar.gz` and contains:
 - `README.md`;
 - `LICENSE.md`.
 
-Windows archives also contain the runtime DLL closure required by the
-executable. The DLLs must remain beside `bwkp.exe` unless their directories are
-otherwise present on `PATH`. The workflow builds each architecture in its
-matching MSYS2 environment and runs `build/collect-windows-runtime.sh` before
-archiving, so only DLLs resolved from the corresponding MINGW32, MINGW64, or
-CLANGARM64 prefix are bundled. The checksum job waits for both the Unix/macOS/
-Android matrix and this separate Windows matrix.
+Windows archives contain only `bwkp.exe` and the two documentation files. The
+workflow builds each architecture in its matching MINGW32, MINGW64, or
+CLANGARM64 environment and rejects imports of non-system DLLs. The checksum job
+waits for both the Unix/macOS/Android matrix and this separate Windows matrix.
 
 The build injects the release version, tagged commit SHA, and UTC build time.
 `bwkp version` also preserves the pinned upstream Bitwarden SDK and KeePassXC
@@ -160,7 +157,7 @@ already updated the cask version in the release pull request. Until the
 first artifact release completes, the all-zero bootstrap digests intentionally
 make cask installation fail closed; they are never valid release checksums.
 The cask selects `macos-arm64` or `macos-amd64` from Homebrew's detected
-architecture and declares the shared native libraries required at runtime.
+architecture. It has no formula runtime dependencies.
 `build/update-homebrew-cask.sh` validates both digests before editing the cask,
 and the release job skips its bot commit when the generated file is unchanged.
 The checksum job therefore needs permission to push its cask-only commit to
@@ -169,23 +166,21 @@ The checksum job therefore needs permission to push its cask-only commit to
 ## Static linking and compatibility
 
 Release binaries statically link the project-owned Rust bridge, official
-Bitwarden SDK code, KeePassXC core, and the small C++ bridge. Keeping those
-version-sensitive components inside the executable avoids asking users to find
-matching SDK or KeePassXC development packages and makes each artifact behave
-consistently across supported machines.
+Bitwarden SDK code, the KDBX-only KeePassXC core, reduced QtCore/QtConcurrent,
+Botan, Argon2, zlib, and non-system compiler runtimes. The removed KeePassXC
+GUI path is why this does not embed Qt Widgets, GUI, Network, DBus, SVG,
+minizip, or QRencode.
 
-The executables are intentionally not completely static. They dynamically use
-platform libraries including Qt, Botan, Argon2, minizip, qrencode, zlib, and
-the OS C/C++ runtime. Linux/container and Termux documentation must list those
-runtime packages, and release builders should target conservative platform
-baselines. A claim that a release is a “fully static binary” would be
-incorrect; the support benefit comes from statically embedding the two pinned
-application-level native dependencies while retaining maintained system
-libraries.
+Linux and container executables are fully static ELF files: they have neither
+an ELF interpreter nor `DT_NEEDED` entries. Other platforms retain the ABI
+which their operating system requires. macOS uses only Apple frameworks and
+`/usr/lib`; Windows imports only system DLLs; Android uses only Bionic/system
+libraries. Those platform references are not third-party runtime dependencies.
 
-When changing link behavior, inspect release candidates with `file`,
-`readelf -d` on ELF systems, or `otool -L` on macOS. Confirm that every dynamic
-dependency is available on the documented target before publishing.
+Mage validates linkage before UPX runs. Linux uses `readelf`, macOS uses
+`otool`, Windows uses `objdump`, and Android applies an explicit Bionic allow
+list. This order is important because `file` can describe a UPX-packed dynamic
+ELF as static and therefore is not sufficient release verification.
 
 ## Failure and recovery
 

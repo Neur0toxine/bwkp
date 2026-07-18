@@ -11,17 +11,20 @@ recorded in `go.mod` and does not require a separately installed `mage` binary.
 - `native/bw` and `native/ffi` compile as a Rust static library. They wrap the
   pinned official Bitwarden Rust SDK and own authentication, synchronization,
   encryption, mutations, and attachment transfer.
-- `native/kpdb` compiles the pinned KeePassXC core and the small project bridge
-  as C++ static libraries. KeePassXC owns KDBX reading, writing, and
-  verification; the project does not contain a second KDBX implementation.
-- cgo links both native components into the Go command. Qt, Botan, Argon2,
-  minizip, qrencode, zlib, and the platform C/C++ runtime remain system runtime
-  dependencies.
+- `native/kpdb` populates the pinned KeePassXC source but compiles only its KDBX
+  data model, crypto, key, stream, reader, and writer sources. The small project
+  patch removes GUI-only includes from that target; it does not replace any
+  KDBX behavior. KeePassXC remains the sole KDBX implementation.
+- Mage builds checksum-pinned static QtCore/QtConcurrent, Botan, Argon2, and
+  zlib archives, then cgo links the complete native closure into the command.
+  Qt GUI, Widgets, Network, DBus, SVG, minizip, and QRencode are not built or
+  linked.
 
-The first build downloads Go modules, Cargo crates and the pinned Bitwarden SDK
-Git revision, and KeePassXC 2.7.12 through CMake FetchContent. Subsequent builds
-reuse the Go, Cargo, and CMake caches. Network access and Git are therefore
-required for a clean build.
+The first build downloads Go modules, Cargo crates, the pinned Bitwarden SDK
+Git revision, KeePassXC 2.7.12, Qt 5.15.18, Botan 3.11.1, Argon2 20190702, and
+zlib 1.3.1. Source archives are checksum verified and generated output is kept
+under `target/`. Subsequent builds reuse those inputs and archives. Network
+access and Git are therefore required for a clean build.
 
 ## Host requirements
 
@@ -29,49 +32,37 @@ Use the exact Go and Rust versions declared by the project:
 
 - Go 1.26.5, including cgo;
 - Rust 1.93.1 and Cargo;
-- Git, CMake 3.21 or newer, pkg-config, and a C++20 compiler;
-- Qt 5 development files for Core, Concurrent, DBus, GUI, Network, SVG, and
-  Widgets;
-- Botan 2 or 3, Argon2, minizip, qrencode, and zlib development files.
+- Git, curl, Python 3, Make, CMake 3.21 or newer, pkg-config, a C++20 compiler,
+  and the platform inspection tools (`file` plus `readelf`, `otool`, or
+  `objdump`).
 
 On Debian or Ubuntu, the native build dependencies used by CI can be installed
 with:
 
 ```text
 sudo apt-get update
-sudo apt-get install cmake g++ git pkg-config qtbase5-dev qttools5-dev \
-  libqt5svg5-dev libbotan-2-dev libargon2-dev libminizip-dev \
-  libqrencode-dev
+sudo apt-get install binutils cmake curl file g++ git make pkg-config python3
 ```
 
 On macOS with Homebrew:
 
 ```text
-brew install cmake qt@5 botan argon2 minizip qrencode
-export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH"
+brew install cmake pkgconf
 ```
 
 Windows releases use MSYS2's MINGW32, MINGW64, and CLANGARM64 environments for
 32-bit x86, x86-64, and ARM64 respectively. Install the matching prefixed
-toolchain, CMake, Ninja, Qt 5, Botan, Argon2, minizip, QRencode, and zlib
-packages, then set `GOARCH`, `CC`, `CXX`, and `CARGO_BUILD_TARGET` as shown in
-the release workflow before running `go tool mage build`. MSYS2 has removed several 32-bit
-packages from its active index, so x86 builds must first run
-`build/install-msys2-x86-dependencies.sh` to install the pinned archived
-dependency set used by CI and releases. The script also extracts an isolated
-GCC 14 compiler and runtime matching those archived libraries; use
-`/opt/bwkp-gcc14/mingw32/bin/gcc.exe` and `g++.exe` for the x86 target, and set
-`BWKP_WINDOWS_GCC_RUNTIME_DIR=/opt/bwkp-gcc14/mingw32/bin` while assembling its
-runtime package. The x86 build also sets
-`LIBRARY_PATH=/opt/bwkp-gcc14/mingw32/lib:/mingw32/lib`, preserving the GCC 14
-C++ library before the current Windows SDK and CRT libraries. The active MSYS2
-package database is not downgraded.
+toolchain, CMake, Ninja, and Python packages, then set `GOARCH`, `CC`, `CXX`,
+and `CARGO_BUILD_TARGET` as shown in the release workflow. MINGW64 and
+CLANGARM64 use MSYS2's `qt5-static` package; Mage source-builds the reduced Qt
+target for MINGW32, where that package is unavailable. Botan, Argon2, and zlib
+are source-built for all three targets.
 
 Run Windows builds from the matching MSYS2 shell. The architecture settings are:
 
 | MSYS2 environment | `GOARCH` | `CC` / `CXX` | `CARGO_BUILD_TARGET` |
 | --- | --- | --- | --- |
-| `MINGW32` | `386` | isolated GCC 14 `gcc.exe` / `g++.exe` | `i686-pc-windows-gnu` |
+| `MINGW32` | `386` | `gcc` / `g++` | `i686-pc-windows-gnu` |
 | `MINGW64` | `amd64` | `gcc` / `g++` | `x86_64-pc-windows-gnu` |
 | `CLANGARM64` | `arm64` | `clang` / `clang++` | `aarch64-pc-windows-gnullvm` |
 
@@ -83,10 +74,9 @@ GOOS=windows GOARCH=amd64 CC=gcc CXX=g++ \
 ```
 
 Mage copies Cargo's target-specific static library to the stable archive path
-used by cgo before linking `dist/bwkp.exe`. To assemble a redistributable tree,
-run `build/collect-windows-runtime.sh dist/bwkp.exe package` in that same MSYS2
-environment. It uses `ldd` to copy the executable's MinGW/LLVM-MinGW DLL closure;
-the executable alone is not a complete portable Windows package.
+used by cgo before linking `dist/bwkp.exe`. The executable is the complete
+application artifact: its import table may reference Windows system DLLs, but
+not Qt, Botan, MinGW, LLVM-MinGW, or other redistributable DLLs.
 
 Both Intel and Apple-silicon macOS builds are native host builds. The release
 and CI matrices use separate `macos-15-intel` Intel and `macos-15` ARM runners, so no
@@ -96,10 +86,18 @@ also taps the checked-out repository and runs `brew audit --strict --cask` on
 both macOS architectures, so cask metadata changes are checked with the native
 builds they describe.
 
-The runtime machine also needs the corresponding shared Qt, Botan, Argon2,
-minizip, qrencode, zlib, and C++ runtime libraries. The release build embeds
-the Go code, the official Bitwarden SDK wrapper, and the KeePassXC core, but it
-is not a fully static executable.
+Linux output is a fully static ELF with no interpreter or `DT_NEEDED` entries.
+Windows, macOS, and Android retain only their platform ABI: Windows system DLLs,
+Apple system frameworks and `/usr/lib`, or Android Bionic libraries. All
+third-party runtimes are embedded; a C/C++ runtime supplied as part of the OS
+remains part of that platform ABI.
+
+Static glibc must not load an NSS plugin from a host built with a different
+glibc. Linux startup therefore selects glibc's built-in `files` and `dns` host
+lookups before the SDK performs network resolution. `/etc/hosts` and ordinary
+DNS names work; hostnames provided only by optional NSS plugins such as mDNS or
+LDAP must also be made available through one of those two mechanisms. This is
+a no-op on non-glibc Linux builds.
 
 Additional tools are target-specific:
 
@@ -130,9 +128,10 @@ VERSION=1.2.3 COMMIT="$(git rev-parse HEAD)" \
   BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage build
 ```
 
-`go tool mage build` performs these phases in order: Cargo builds the pinned
-Bitwarden SDK adapter, CMake builds the pinned KeePassXC core and bridge, and Go
-links the native archives into the command with cgo. Generated output lives
+`go tool mage build` first creates the pinned static dependency sysroot, then
+builds the Bitwarden SDK adapter, reduced KeePassXC core and bridge, and links
+the native archives into the command with cgo. It verifies the uncompressed
+artifact's dependency table before optional packing. Generated output lives
 under `target/` and `dist/`. Linker symbols, debug tables, source paths, and
 build identifiers are omitted from release-style binaries. When `upx` is in
 `PATH`, Mage also packs Linux and Android executables with its best LZMA mode
@@ -181,7 +180,7 @@ binaries, not general GNU/Linux ARM binaries or APKs.
 ## Build with Docker or Podman
 
 The repository Dockerfile provides a pinned Debian-based build environment and
-a smaller runtime image. The public Mage target chooses Podman when installed,
+a `scratch` runtime image. The public Mage target chooses Podman when installed,
 otherwise Docker Buildx, and finally classic Docker:
 
 ```text
@@ -203,9 +202,10 @@ docker run --rm -it -v "$PWD/output:/output" bwkp:dev \
   export --region us --email alice@example.com --output /output/vault.kdbx
 ```
 
-Container builds are preferable when the host distribution lacks compatible
-Qt/Botan development packages, when CI and local builds should use the same
-toolchain, or when native build dependencies should not be installed globally.
+The runtime image is `scratch` plus the executable and CA certificate bundle;
+it contains no package-manager runtime libraries. Container builds are useful
+when CI and local builds should use the same toolchain or when build tools
+should not be installed globally.
 Host builds are faster for repeated development because compiler caches and
 debugging tools are directly available. Containerization does not change the
 secret-handling rules: mount only the required secret files and output
@@ -213,9 +213,9 @@ directory, and never bake credentials or decrypted vault data into an image.
 
 ## Troubleshooting
 
-- A pkg-config error normally means a Qt or native development package is
-  missing, or Homebrew's Qt/Botan pkg-config directories are not in
-  `PKG_CONFIG_PATH`.
+- A clean native build needs network access to the pinned source archives. A
+  checksum error indicates a corrupted cache or changed upstream archive and
+  must not be bypassed.
 - A cgo linker error after changing native code can be stale output. Re-run
   `go tool mage build`; the target deliberately asks Go for a full relink.
 - Docker Compose must be available as `docker compose` for e2e tests. Podman

@@ -28,5 +28,7 @@ four headers on the native attachment request. Attachment bytes are compared
 in both transfer directions.
 
 `coverage` gates the testable Go core packages at 70%. Native SDK code is gated
-by its integration/e2e behavior because line coverage across CGo and C++/Rust
-static libraries would be misleading.
+by its integration/e2e behavior because line coverage across cgo and C++/Rust
+static libraries would be misleading. Every native build also checks the
+uncompressed executable's dependency table before optional UPX packing, so
+compression cannot disguise an unexpected shared-library dependency.

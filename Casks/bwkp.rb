@@ -12,11 +12,6 @@ cask "bwkp" do
   desc "Transfer records between Bitwarden or Vaultwarden and KeePassXC"
   homepage "https://github.com/Neur0toxine/bwkp"
 
-  depends_on formula: "argon2"
-  depends_on formula: "botan"
-  depends_on formula: "minizip"
-  depends_on formula: "qrencode"
-  depends_on formula: "qt@5"
   depends_on macos: ">= :ventura"
 
   binary "bwkp"

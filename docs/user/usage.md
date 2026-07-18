@@ -18,8 +18,8 @@ brew tap Neur0toxine/bwkp https://github.com/Neur0toxine/bwkp
 brew install --cask Neur0toxine/bwkp/bwkp
 ```
 
-The cask selects a separate release binary for Intel or Apple silicon and
-installs the required Homebrew runtime libraries. `brew update` and
+The cask selects a separate self-contained release binary for Intel or Apple
+silicon. `brew update` and
 `brew upgrade bwkp` install later releases. Intel builds are retained for
 legacy Macs; Apple-silicon Macs use the native ARM64 binary rather than Rosetta.
 
@@ -31,14 +31,15 @@ devices. Archives named `android-armv7` support 32-bit ARMv7 devices and
 These are Android/Bionic executables for the standard Termux application, not
 GNU/Linux ARM executables and not APKs.
 
-Install a current Termux release, enable its X11 package repository, and install
-the runtime libraries used by the pinned KeePassXC core:
+Install a current Termux release and update its base environment:
 
 ```text
 pkg update
-pkg install x11-repo
-pkg install argon2 botan3 libc++ libminizip libqrencode qt5-qtbase qt5-qtsvg zlib
 ```
+
+The release executable embeds its Qt, Botan, Argon2, zlib, KeePassXC, and C++
+dependencies. It does not require the Termux X11 repository or extra runtime
+packages.
 
 Download and unpack the matching `bwkp_vVERSION_android-ARCH.tar.gz` release
 inside Termux, then install it in Termux's executable path:

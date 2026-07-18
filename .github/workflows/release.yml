@@ -28,12 +28,10 @@ jobs:
       - if: matrix.dependencies == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes cmake g++ pkg-config qtbase5-dev qttools5-dev \
-            libqt5svg5-dev libbotan-2-dev libargon2-dev libminizip-dev libqrencode-dev
+          sudo apt-get install --yes binutils cmake curl file g++ make pkg-config python3
       - if: matrix.dependencies == 'macos'
         run: |
-          brew install cmake qt@5 botan argon2 minizip qrencode
-          echo "PKG_CONFIG_PATH=$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          brew install cmake pkgconf
       - if: matrix.dependencies != 'macos'
         run: |
           build/install-upx.sh "$RUNNER_TEMP/upx"
@@ -60,14 +58,10 @@ jobs:
             goarch: "386"
             rust-target: i686-pc-windows-gnu
             msystem: MINGW32
-            cc: /opt/bwkp-gcc14/mingw32/bin/gcc.exe
-            cxx: /opt/bwkp-gcc14/mingw32/bin/g++.exe
-            gcc-runtime-dir: /opt/bwkp-gcc14/mingw32/bin
-            library-path: /opt/bwkp-gcc14/mingw32/lib:/mingw32/lib
-            archived-x86-dependencies: true
+            cc: gcc
+            cxx: g++
             packages: >-
-              mingw-w64-i686-toolchain mingw-w64-i686-cmake mingw-w64-i686-ninja
-              mingw-w64-i686-minizip mingw-w64-i686-zlib
+              mingw-w64-i686-toolchain mingw-w64-i686-cmake mingw-w64-i686-ninja mingw-w64-i686-python
           - runner: windows-2025
             target: windows-amd64
             goarch: amd64
@@ -77,9 +71,7 @@ jobs:
             cxx: g++
             packages: >-
               mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
-              mingw-w64-x86_64-qt5-base mingw-w64-x86_64-qt5-tools mingw-w64-x86_64-qt5-svg
-              mingw-w64-x86_64-libbotan mingw-w64-x86_64-argon2 mingw-w64-x86_64-minizip
-              mingw-w64-x86_64-qrencode mingw-w64-x86_64-zlib
+              mingw-w64-x86_64-python mingw-w64-x86_64-qt5-static
           - runner: windows-11-arm
             target: windows-arm64
             goarch: arm64
@@ -89,9 +81,7 @@ jobs:
             cxx: clang++
             packages: >-
               mingw-w64-clang-aarch64-toolchain mingw-w64-clang-aarch64-cmake mingw-w64-clang-aarch64-ninja
-              mingw-w64-clang-aarch64-qt5-base mingw-w64-clang-aarch64-qt5-tools mingw-w64-clang-aarch64-qt5-svg
-              mingw-w64-clang-aarch64-libbotan mingw-w64-clang-aarch64-argon2 mingw-w64-clang-aarch64-minizip
-              mingw-w64-clang-aarch64-qrencode mingw-w64-clang-aarch64-zlib
+              mingw-w64-clang-aarch64-python mingw-w64-clang-aarch64-qt5-static
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -105,23 +95,19 @@ jobs:
           update: true
           install: ${{ matrix.packages }}
           path-type: inherit
-      - if: matrix.archived-x86-dependencies
-        shell: msys2 {0}
-        run: build/install-msys2-x86-dependencies.sh
       - shell: msys2 {0}
         env:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
-          BWKP_WINDOWS_GCC_RUNTIME_DIR: ${{ matrix.gcc-runtime-dir }}
-          LIBRARY_PATH: ${{ matrix.library-path }}
           CARGO_BUILD_TARGET: ${{ matrix.rust-target }}
           VERSION: ${{ github.ref_name }}
           COMMIT: ${{ github.sha }}
         run: |
           VERSION="${VERSION#v}" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage build
-          build/collect-windows-runtime.sh dist/bwkp.exe package
+          mkdir package
+          cp dist/bwkp.exe package/
           cp README.md LICENSE.md package/
           tar -C package -czf "bwkp_${{ github.ref_name }}_${{ matrix.target }}.tar.gz" .
           file package/bwkp.exe

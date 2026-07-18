@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libargon2
+Description: Memory-hard password hashing library
+Version: @UPSTREAM_VER@
+Libs: -L${libdir} -largon2
+Cflags: -I${includedir}

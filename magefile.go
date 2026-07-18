@@ -26,13 +26,17 @@ func Build() error {
 	if err := os.MkdirAll("dist", 0o755); err != nil {
 		return err
 	}
+	buildEnvironment, err := staticBuildEnvironment()
+	if err != nil {
+		return err
+	}
 	if err := sh.RunV("cargo", "build", "--locked", "--release", "-p", "bwkp-native"); err != nil {
 		return err
 	}
 	if err := stageRustLibrary(); err != nil {
 		return err
 	}
-	if err := buildKeePassXC(); err != nil {
+	if err := buildKeePassXC(buildEnvironment); err != nil {
 		return err
 	}
 	version := envOr("VERSION", "dev")
@@ -46,15 +50,69 @@ func Build() error {
 	ldflags += " -buildid="
 	switch runtime.GOOS {
 	case "linux":
-		ldflags += " -extldflags=-Wl,--gc-sections,--build-id=none"
+		ldflags += " -linkmode=external -extldflags \"-static -static-libgcc -static-libstdc++ -Wl,--gc-sections,--build-id=none\""
+	case "windows":
+		ldflags += " -linkmode=external -extldflags \"-static -Wl,--gc-sections\""
 	case "darwin":
 		ldflags += " -extldflags=-Wl,-dead_strip,-no_uuid"
 	}
 	// CGo does not include external archive mtimes in Go's build cache key.
-	if err := sh.RunWithV(map[string]string{"CGO_ENABLED": "1"}, "go", "build", "-a", "-trimpath", "-tags", "native", "-ldflags", ldflags, "-o", output, "./cmd/bwkp"); err != nil {
+	buildEnvironment["CGO_ENABLED"] = "1"
+	if err := sh.RunWithV(buildEnvironment, "go", "build", "-a", "-trimpath", "-tags", "native", "-ldflags", ldflags, "-o", output, "./cmd/bwkp"); err != nil {
+		return err
+	}
+	if err := sh.RunV("build/verify-linkage.sh", output); err != nil {
 		return err
 	}
 	return packBinary(output)
+}
+
+func staticBuildEnvironment() (map[string]string, error) {
+	environment := make(map[string]string)
+	prefix, err := filepath.Abs(envOr("BWKP_STATIC_PREFIX", filepath.Join("target", "static")))
+	if err != nil {
+		return nil, err
+	}
+	prefix = filepath.ToSlash(prefix)
+	environment["BWKP_STATIC_PREFIX"] = prefix
+	prefixes := []string{prefix}
+	if mingwPrefix := os.Getenv("MINGW_PREFIX"); runtime.GOOS == "windows" && mingwPrefix != "" {
+		windowsPrefix, err := sh.Output("cygpath", "-m", mingwPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("resolve MSYS2 prefix: %w", err)
+		}
+		prefixes = append(prefixes, strings.TrimRight(windowsPrefix, "/")+"/qt5-static")
+	}
+	pkgConfigPaths := make([]string, 0, len(prefixes)*2)
+	linkerPaths := make([]string, 0, len(prefixes))
+	for _, dependencyPrefix := range prefixes {
+		dependencyPrefix = strings.TrimRight(dependencyPrefix, "/")
+		pkgConfigPaths = append(pkgConfigPaths,
+			dependencyPrefix+"/lib/pkgconfig",
+			dependencyPrefix+"/share/pkgconfig",
+		)
+		linkerPaths = append(linkerPaths, "-L"+dependencyPrefix+"/lib")
+	}
+	switch runtime.GOOS {
+	case "linux":
+		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz", "-lstdc++", "-lm", "-lpthread", "-ldl", "-lrt")
+	case "darwin":
+		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz", "-lc++", "-lm", "-lpthread")
+	case "windows":
+		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz")
+		if runtime.GOARCH == "arm64" {
+			linkerPaths = append(linkerPaths, "-lc++")
+		} else {
+			linkerPaths = append(linkerPaths, "-lstdc++")
+		}
+	}
+	environment["BWKP_STATIC_PREFIXES"] = strings.Join(prefixes, ";")
+	environment["PKG_CONFIG_PATH"] = strings.Join(pkgConfigPaths, string(os.PathListSeparator))
+	environment["CGO_LDFLAGS"] = strings.Join(linkerPaths, " ")
+	if err := sh.RunWithV(environment, "build/static-dependencies.sh"); err != nil {
+		return nil, err
+	}
+	return environment, nil
 }
 
 // stageRustLibrary gives cgo a target-independent archive path when Cargo is
@@ -115,21 +173,27 @@ func dockerBuildxAvailable() bool {
 	return exec.Command("docker", "buildx", "version").Run() == nil
 }
 
-func buildKeePassXC() error {
+func buildKeePassXC(environment map[string]string) error {
 	arguments := []string{"-S", "native/kpdb", "-B", "target/keepassxc", "-DCMAKE_BUILD_TYPE=Release"}
+	if prefixes := environment["BWKP_STATIC_PREFIXES"]; prefixes != "" {
+		arguments = append(arguments,
+			"-DCMAKE_PREFIX_PATH="+prefixes,
+			"-DCMAKE_FIND_LIBRARY_SUFFIXES=.a",
+		)
+	}
 	if runtime.GOOS == "windows" {
 		if windeployqt, err := exec.LookPath("windeployqt-qt5"); err == nil {
 			arguments = append(arguments, "-DWINDEPLOYQT_EXE="+filepath.ToSlash(windeployqt))
 		}
 	}
-	if err := sh.RunV("cmake", arguments...); err != nil {
+	if err := sh.RunWithV(environment, "cmake", arguments...); err != nil {
 		return err
 	}
 	arguments = []string{"--build", "target/keepassxc", "--config", "Release", "--target", "bwkp_kpdb", "--parallel"}
 	if parallel := os.Getenv("CMAKE_BUILD_PARALLEL_LEVEL"); parallel != "" {
 		arguments = append(arguments, parallel)
 	}
-	return sh.RunV("cmake", arguments...)
+	return sh.RunWithV(environment, "cmake", arguments...)
 }
 
 type Android mg.Namespace
@@ -198,6 +262,9 @@ func buildAndroid(termuxArch, artifactArch string) error {
 	source := filepath.Join(packageRoot, "data", "data", "com.termux", "files", "usr", "bin", "bwkp")
 	output := filepath.Join("dist", "bwkp-android-"+artifactArch)
 	if err := copyFile(source, output, 0o755); err != nil {
+		return err
+	}
+	if err := sh.RunV("build/verify-linkage.sh", output, "android"); err != nil {
 		return err
 	}
 	return packBinary(output)

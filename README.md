@@ -17,10 +17,11 @@ Run `bwkp version` to see both upstream versions compiled into a binary.
 
 ## Installation
 
-Release binaries dynamically use Qt, Botan, Argon2, minizip, QRencode, zlib,
-and the platform C/C++ runtime. Windows archives include the required DLLs and
-Homebrew installs the macOS libraries automatically; mise and manual Linux or
-Android installs require the matching runtime packages described below.
+Release binaries embed the reduced QtCore/QtConcurrent, Botan, Argon2, zlib,
+and KeePassXC closure. Linux artifacts are fully static;
+Windows, macOS, and Android artifacts depend only on libraries supplied by the
+operating system. No Qt, Botan, KeePassXC, or other third-party runtime package
+is required.
 
 <table>
   <thead>
@@ -37,8 +38,7 @@ Android installs require the matching runtime packages described below.
         Download <code>windows-386</code> for 32-bit x86, <code>windows-amd64</code> for x86-64, or
         <code>windows-arm64</code> for ARM64 from
         <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>. Verify it with
-        <code>SHA256SUMS</code>, extract it, and keep <code>bwkp.exe</code> and the bundled DLLs together
-        in a directory on <code>PATH</code>.
+        <code>SHA256SUMS</code>, extract it, and place <code>bwkp.exe</code> on <code>PATH</code>.
       </td>
     </tr>
     <tr>
@@ -54,7 +54,7 @@ Android installs require the matching runtime packages described below.
         <strong>1. Homebrew (recommended)</strong><br>
         <code>brew tap Neur0toxine/bwkp https://github.com/Neur0toxine/bwkp</code><br>
         <code>brew install --cask Neur0toxine/bwkp/bwkp</code><br>
-        Selects the native Intel or Apple-silicon archive and installs its runtime dependencies.
+        Selects the native Intel or Apple-silicon archive.
       </td>
     </tr>
     <tr>
@@ -97,10 +97,9 @@ Android installs require the matching runtime packages described below.
       <td>🤖 <strong>Android</strong></td>
       <td>
         <strong>Termux installer script</strong><br>
-        Install a current Termux release and the required runtime packages, then run
+        Install a current Termux release, then run
         <code>curl -sSfL https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh | bash</code>.
-        See the <a href="docs/user/usage.md#android-and-termux">Termux instructions</a> for the required
-        <code>pkg</code> commands. Use the dedicated <code>android-arm64</code> or
+        Use the dedicated <code>android-arm64</code> or
         <code>android-armv7</code> binary; Linux ARM archives are incompatible.
       </td>
     </tr>
@@ -132,11 +131,8 @@ curl -sSfL https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh 
   bash -s -- -b "$HOME/.local/bin" v1.2.3
 ```
 
-Before using mise, the installer script, or a release archive on Linux, install
-the runtime libraries through the distribution package manager. Debian and
-Ubuntu builds need the Qt 5 Core, Concurrent, DBus, GUI, Network, SVG, and
-Widgets libraries plus Botan 2, Argon2, minizip, QRencode, zlib, and the C++
-runtime. The project does not publish the tool-specific plugin required by
+Release executables are self-contained apart from operating-system libraries
+on Windows, macOS, and Android. The project does not publish the tool-specific plugin required by
 [asdf](https://asdf-vm.com/), so mise is the direct, plugin-free option.
 
 ## Usage
@@ -171,14 +167,15 @@ go tool mage test:e2e
 go tool mage lint
 ```
 
-`go tool mage build` downloads the pinned KeePassXC source and builds its core
-as a static C++ archive before linking `bwkp`. The host needs Go 1.26.5, Rust
-1.93.1, CMake, a C++20 compiler, and KeePassXC 2.7.12's Qt/Botan/Argon2 build
-dependencies. The Dockerfile provides a contained build environment.
+`go tool mage build` downloads checksum-pinned Qt, Botan, Argon2, zlib, and
+KeePassXC sources, builds the KDBX-only native closure, and links it into
+`bwkp`. The host needs Go 1.26.5, Rust 1.93.1, Git, CMake, pkg-config, Python,
+Make, curl, and a C++20 compiler. The Dockerfile provides a contained build
+environment.
 
 The Android targets use the pinned Termux package toolchain in Docker and place
 Termux-compatible binaries in `dist/`. See [the user guide](docs/user/usage.md#android-and-termux)
-for installation and runtime dependencies.
+for installation details.
 
 `go tool mage image` builds the runtime image as `bwkp:dev` by default. It uses
 Podman when available; otherwise it uses Docker Buildx with `--load`, falling

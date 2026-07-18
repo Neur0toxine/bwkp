@@ -6,9 +6,7 @@ ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-       ca-certificates cmake curl g++ gcc git libc6-dev pkg-config \
-       qtbase5-dev qttools5-dev libqt5svg5-dev \
-       libbotan-3-dev libargon2-dev libminizip-dev libqrencode-dev \
+       binutils ca-certificates cmake curl file g++ gcc git libc6-dev make pkg-config python3 \
     && rm -rf /var/lib/apt/lists/* \
     && curl --fail --silent --show-error --location "https://go.dev/dl/go${GO_VERSION}.linux-$(dpkg --print-architecture | sed 's/amd64/amd64/;s/arm64/arm64/').tar.gz" -o /tmp/go.tar.gz \
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
@@ -22,11 +20,8 @@ RUN ./build/install-upx.sh /usr/local/bin \
 FROM scratch AS artifact
 COPY --from=build /src/dist/bwkp /bwkp
 
-FROM docker.io/library/debian:trixie-slim AS runtime
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends \
-       ca-certificates libqt5concurrent5t64 libqt5dbus5t64 libqt5network5t64 libqt5svg5 libqt5widgets5t64 \
-       libbotan-3-7 libargon2-1 libminizip1t64 libqrencode4 \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=build /src/dist/bwkp /usr/local/bin/bwkp
-ENTRYPOINT ["/usr/local/bin/bwkp"]
+FROM scratch AS runtime
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /src/dist/bwkp /bwkp
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENTRYPOINT ["/bwkp"]
