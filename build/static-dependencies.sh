@@ -182,7 +182,14 @@ build_qt() {
     -qt-doubleconversion -qt-pcre -system-zlib \
     -I "$prefix/include" -L "$prefix/lib"
   make -j"$jobs" sub-src
-  make install
+  if [[ -n "${MSYSTEM:-}" ]]; then
+    # KeePassXC consumes Qt through CMake and only needs the src artifacts.
+    # The top-level 32-bit MinGW install expects an unused qmake bootstrap at
+    # a path where Qt's own build does not place it.
+    make -C src install
+  else
+    make install
+  fi
   popd >/dev/null
 }
 
