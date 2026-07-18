@@ -63,8 +63,8 @@ back to classic `docker build` when Buildx is unavailable. Set `BWKP_IMAGE` and
 `VERSION` to select another image reference and version. The target fails when
 neither Podman nor Docker is installed.
 
-Technical design, mappings, security properties, and testing are documented
-under [docs/tech](docs/tech/architecture.md).
+See the detailed guides for [architecture](docs/tech/architecture.md) and
+[building and testing](docs/tech/building.md).
 
 ## License
 
