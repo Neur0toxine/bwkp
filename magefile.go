@@ -108,6 +108,10 @@ func staticBuildEnvironment() (map[string]string, error) {
 		} else {
 			linkerPaths = append(linkerPaths, "-lstdc++")
 		}
+		linkerPaths = append(linkerPaths,
+			"-lole32", "-luuid", "-lshell32", "-luserenv", "-lnetapi32",
+			"-lversion", "-lws2_32", "-lwinmm", "-ladvapi32", "-lzstd",
+		)
 	}
 	environment["BWKP_STATIC_PREFIXES"] = strings.Join(prefixes, ";")
 	environment["PKG_CONFIG_PATH"] = strings.Join(pkgConfigPaths, string(os.PathListSeparator))

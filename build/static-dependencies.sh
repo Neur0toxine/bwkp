@@ -2,6 +2,10 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+if [[ -n "${MSYSTEM:-}" ]]; then
+  # Native MinGW build tools do not understand MSYS paths such as /d/a/....
+  root=$(cygpath -m "$root")
+fi
 prefix=${BWKP_STATIC_PREFIX:-"$root/target/static"}
 downloads="$root/target/downloads"
 sources="$root/target/static-sources"
@@ -91,6 +95,14 @@ build_botan() {
     c1cd7152519f4188591fa4f6ddeb116bc1004491f5f3c58aa99b00582eb8a137
   local source="$sources/Botan-$botan_version"
   extract "$downloads/Botan-$botan_version.tar.xz" "$source" configure.py
+  # LLVM's MinGW ARM64 libc++ advertises pthread-backed std::thread without
+  # providing pthread_setname_np. Thread naming is optional, so skip that path.
+  if ! grep -q '_LIBCPP_HAS_THREAD_API_PTHREAD.*!defined(__MINGW32__)' "$source/src/lib/utils/os_utils/os_utils.cpp"; then
+    sed -i.bwkp \
+      's/defined(_LIBCPP_HAS_THREAD_API_PTHREAD)/defined(_LIBCPP_HAS_THREAD_API_PTHREAD) \&\& !defined(__MINGW32__)/' \
+      "$source/src/lib/utils/os_utils/os_utils.cpp"
+    rm -f "$source/src/lib/utils/os_utils/os_utils.cpp.bwkp"
+  fi
   pushd "$source" >/dev/null
   local target=()
   if [[ -n "${TERMUX_ARCH:-}" ]]; then
@@ -135,6 +147,9 @@ build_qt() {
     platform=(-platform win32-g++)
   elif [[ -n "${TERMUX_ARCH:-}" ]]; then
     cp -R "$TERMUX_PREFIX/lib/qt/mkspecs/termux-cross" "$source/mkspecs/"
+    if ! grep -q '^DEFINES += Q_OS_ANDROID_EMBEDDED$' "$source/mkspecs/termux-cross/qmake.conf"; then
+      printf '\nDEFINES += Q_OS_ANDROID_EMBEDDED\n' >> "$source/mkspecs/termux-cross/qmake.conf"
+    fi
     platform=(-xplatform termux-cross -hostprefix "$source/host")
   fi
   ../configure -prefix "$prefix" ${platform[@]+"${platform[@]}"} -opensource -confirm-license -release -static \
