@@ -81,6 +81,7 @@ jobs:
             cc: /opt/bwkp-gcc14/mingw32/bin/gcc.exe
             cxx: /opt/bwkp-gcc14/mingw32/bin/g++.exe
             gcc-runtime-dir: /opt/bwkp-gcc14/mingw32/bin
+            library-path: /opt/bwkp-gcc14/mingw32/lib:/mingw32/lib
             archived-x86-dependencies: true
             packages: >-
               mingw-w64-i686-toolchain mingw-w64-i686-cmake mingw-w64-i686-ninja
@@ -130,6 +131,7 @@ jobs:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
           BWKP_WINDOWS_GCC_RUNTIME_DIR: ${{ matrix.gcc-runtime-dir }}
+          LIBRARY_PATH: ${{ matrix.library-path }}
           CARGO_BUILD_TARGET: ${{ matrix.rust-target }}
           BWKP_UPX: "0"
         run: |

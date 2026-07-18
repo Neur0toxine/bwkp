@@ -62,7 +62,10 @@ dependency set used by CI and releases. The script also extracts an isolated
 GCC 14 compiler and runtime matching those archived libraries; use
 `/opt/bwkp-gcc14/mingw32/bin/gcc.exe` and `g++.exe` for the x86 target, and set
 `BWKP_WINDOWS_GCC_RUNTIME_DIR=/opt/bwkp-gcc14/mingw32/bin` while assembling its
-runtime package. The active MSYS2 package database is not downgraded.
+runtime package. The x86 build also sets
+`LIBRARY_PATH=/opt/bwkp-gcc14/mingw32/lib:/mingw32/lib`, preserving the GCC 14
+C++ library before the current Windows SDK and CRT libraries. The active MSYS2
+package database is not downgraded.
 
 Run Windows builds from the matching MSYS2 shell. The architecture settings are:
 

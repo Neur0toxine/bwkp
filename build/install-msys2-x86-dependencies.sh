@@ -50,7 +50,8 @@ int main()
     std::cout << "ok";
 }
 EOF
-"$gcc_toolchain/mingw32/bin/g++.exe" \
+LIBRARY_PATH="$gcc_toolchain/mingw32/lib:/mingw32/lib" \
+  "$gcc_toolchain/mingw32/bin/g++.exe" \
   "$gcc_packages/smoke.cpp" \
   -o "$gcc_packages/smoke.exe"
 PATH="$gcc_toolchain/mingw32/bin:$PATH" "$gcc_packages/smoke.exe" >/dev/null
