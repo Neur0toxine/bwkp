@@ -1,0 +1,6 @@
+.git
+.github
+dist
+target
+test/e2e/.state
+*.kdbx

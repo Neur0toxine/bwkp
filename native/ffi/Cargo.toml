@@ -1,0 +1,13 @@
+[package]
+name = "bwkp-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+bwkp-bw = { path = "../bw" }
+serde_json.workspace = true

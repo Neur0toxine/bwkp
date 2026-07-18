@@ -1,0 +1,7 @@
+/dist/
+/target/
+/test/e2e/.state/
+*.kdbx
+.DS_Store
+.idea/
+.vscode/

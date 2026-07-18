@@ -1,0 +1,50 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - revive
+    - testifylint
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+  exclusions:
+    generated: lax
+    rules:
+      - path: internal/native/ffi_native.go
+        linters: [gocritic, gosec]
+        text: "unsafe|CGo"
+      - path: internal/atomicfile/atomicfile.go
+        linters: [gosec]
+        text: "G304"
+      - path: internal/atomicfile/atomicfile_test.go
+        linters: [gosec]
+        text: "G304"
+      - path: internal/prompt/secret.go
+        linters: [gosec]
+        text: "G304"
+      - path: internal/cli/cli.go
+        linters: [gosec]
+        text: "G304"
+      - path: pkg/kpdb/native.go
+        linters: [gosec]
+        text: "G117"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -1,0 +1,15 @@
+[package]
+name = "bwkp-e2e-register"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+bitwarden-core.workspace = true
+bitwarden-crypto.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros"] }

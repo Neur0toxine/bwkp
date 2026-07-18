@@ -1,0 +1,79 @@
+{
+  "encrypted": false,
+  "folders": [
+    {"id": "11111111-1111-4111-8111-111111111111", "name": "Engineering/Production"},
+    {"id": "22222222-2222-4222-8222-222222222222", "name": "Personal"}
+  ],
+  "items": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "folderId": "11111111-1111-4111-8111-111111111111",
+      "type": 1,
+      "name": "Complex Login",
+      "notes": "Unicode notes: Привет 🔐",
+      "favorite": true,
+      "fields": [
+        {"name": "Environment", "value": "production", "type": 0},
+        {"name": "Recovery PIN", "value": "1234", "type": 1},
+        {"name": "Enabled", "value": "true", "type": 2},
+        {"name": "Duplicate", "value": "one", "type": 0},
+        {"name": "Duplicate", "value": "two", "type": 1}
+      ],
+      "login": {
+        "username": "alice@example.test",
+        "password": "correct horse battery staple",
+        "totp": "JBSWY3DPEHPK3PXP",
+        "uris": [
+          {"match": 0, "uri": "https://example.test"},
+          {"match": 1, "uri": "https://admin.example.test"}
+        ]
+      },
+      "passwordHistory": [
+        {"lastUsedDate": "2025-01-02T03:04:05.000Z", "password": "previous password"}
+      ]
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000002",
+      "folderId": "22222222-2222-4222-8222-222222222222",
+      "type": 2,
+      "name": "Secure Note",
+      "notes": "A protected note with multiple lines.\nSecond line."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000003",
+      "type": 3,
+      "name": "Payment Card",
+      "card": {"cardholderName": "Alice Example", "brand": "Visa", "number": "4111111111111111", "expMonth": "12", "expYear": "2030", "code": "123"}
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000004",
+      "type": 4,
+      "name": "Full Identity",
+      "identity": {"title": "Dr", "firstName": "Alice", "middleName": "Q", "lastName": "Example", "address1": "1 Main Street", "city": "Testville", "state": "CA", "postalCode": "90210", "country": "US", "company": "Example Inc", "email": "alice@example.test", "phone": "+1-555-0100", "ssn": "000-00-0000", "username": "alice-id", "passportNumber": "X1234567", "licenseNumber": "D1234567"}
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000005",
+      "type": 5,
+      "name": "SSH Key",
+      "sshKey": {"privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\ninvalid-fixture-key-replaced-by-seeder\n-----END OPENSSH PRIVATE KEY-----", "publicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixture bwkp-e2e", "keyFingerprint": "SHA256:fixture"}
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000006",
+      "type": 2,
+      "name": "Attachment Item",
+      "notes": "The e2e seeder adds a binary attachment to this item."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000007",
+      "type": 2,
+      "name": "Archived Item",
+      "notes": "Archived after import."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000008",
+      "type": 2,
+      "name": "Deleted Item",
+      "notes": "Moved to trash after import."
+    }
+  ]
+}

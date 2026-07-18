@@ -1,0 +1,54 @@
+name: Release Artifacts
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, target: linux-amd64, binary: bwkp}
+          - {runner: ubuntu-24.04-arm, target: linux-arm64, binary: bwkp}
+          - {runner: macos-13, target: macos-amd64, binary: bwkp}
+          - {runner: macos-14, target: macos-arm64, binary: bwkp}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod, cache: true}
+      - uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1}
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake g++ pkg-config qtbase5-dev qttools5-dev \
+            libqt5svg5-dev libbotan-2-dev libargon2-dev libminizip-dev libqrencode-dev
+      - if: runner.os == 'macOS'
+        run: |
+          brew install cmake qt@5 botan argon2 minizip qrencode
+          echo "PKG_CONFIG_PATH=$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix botan)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+      - shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" COMMIT="$GITHUB_SHA" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage build
+          mkdir package
+          cp "dist/${{ matrix.binary }}" README.md LICENSE.md package/
+          tar -C package -czf "bwkp_${GITHUB_REF_NAME}_${{ matrix.target }}.tar.gz" .
+      - uses: actions/attest-build-provenance@v2
+        with: {subject-path: "bwkp_*.tar.gz"}
+      - uses: softprops/action-gh-release@v2
+        with: {files: "bwkp_*.tar.gz"}
+
+  checksums:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: robinraju/release-downloader@v1
+        with: {tag: "${{ github.ref_name }}", fileName: "bwkp_*.tar.gz"}
+      - run: sha256sum bwkp_*.tar.gz > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with: {files: SHA256SUMS}

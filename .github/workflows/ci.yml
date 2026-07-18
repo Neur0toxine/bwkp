@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod, cache: true}
+      - uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1, components: rustfmt, clippy}
+      - run: go tool mage test:unit coverage
+      - uses: golangci/golangci-lint-action@v8
+        with: {version: v2.12.2}
+
+  rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1, components: rustfmt, clippy}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace --exclude bwkp-e2e-register
+
+  e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod, cache: true}
+      - uses: actions/setup-node@v4
+        with: {node-version: 24}
+      - uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1}
+      - uses: Swatinem/rust-cache@v2
+      - run: |
+          sudo apt-get update
+          sudo apt-get install --yes keepassxc sqlite3 openssh-client openssl cmake g++ pkg-config \
+            qtbase5-dev qttools5-dev libqt5svg5-dev libbotan-2-dev libargon2-dev \
+            libminizip-dev libqrencode-dev
+      - run: go tool mage test:e2e

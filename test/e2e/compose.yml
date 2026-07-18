@@ -1,0 +1,19 @@
+services:
+  vaultwarden:
+    image: docker.io/vaultwarden/server:1.36.0@sha256:d626d04934cd1192ad8ced1adb975099fca78cec33ab467d2d3c923cde7f3b0c
+    environment:
+      DOMAIN: https://localhost:${BWKP_VAULTWARDEN_PORT:-18080}
+      ROCKET_TLS: '{certs="/data/cert.pem",key="/data/key.pem"}'
+      SIGNUPS_ALLOWED: "true"
+      SIGNUPS_VERIFY: "false"
+      WEBSOCKET_ENABLED: "false"
+      LOG_LEVEL: warn
+    ports:
+      - 127.0.0.1:${BWKP_VAULTWARDEN_PORT:-18080}:80
+    volumes:
+      - ./.state/vaultwarden:/data
+    healthcheck:
+      test: ["CMD", "curl", "--insecure", "--fail", "https://127.0.0.1:80/alive"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
