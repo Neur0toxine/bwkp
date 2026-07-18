@@ -10,7 +10,7 @@ package native
 #cgo darwin pkg-config: Qt5Core Qt5Concurrent Qt5DBus Qt5Gui Qt5Network Qt5Svg Qt5Widgets
 #cgo darwin LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbotan-3 -largon2 -lminizip -lz -lc++ -framework Security -framework CoreFoundation -framework Foundation -framework AppKit -liconv
 #cgo windows pkg-config: Qt5Core Qt5Concurrent Qt5Gui Qt5Network Qt5Svg Qt5Widgets
-#cgo windows LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbotan-3 -largon2 -lminizip -lz -lwtsapi32 -lpowrprof -lbcrypt -lws2_32 -luserenv -lntdll
+#cgo windows LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lautotype -lqrcode -lzxcvbn -lqrencode -lbotan-3 -largon2 -lminizip -lz -lwtsapi32 -lpowrprof -luuid -lbcrypt -lws2_32 -luserenv -lntdll
 #cgo windows,386 LDFLAGS: -lstdc++
 #cgo windows,amd64 LDFLAGS: -lstdc++
 #cgo windows,arm64 LDFLAGS: -lc++
