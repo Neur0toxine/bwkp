@@ -255,9 +255,13 @@ func configureTermuxRunner(repository string) (bool, error) {
 func runTermuxBuilder(repository, containerName, termuxArch string, podman bool) error {
 	if !podman {
 		defer exec.Command("docker", "rm", "--force", containerName).Run()
+		cacheMount := "--volume " + containerName + "-cache:/home/builder/.termux-build"
+		if os.Getenv("CI") == "true" {
+			cacheMount = "--mount type=tmpfs,destination=/home/builder/.termux-build,tmpfs-mode=0777"
+		}
 		environment := map[string]string{
 			"CONTAINER_NAME":                                    containerName,
-			"TERMUX_DOCKER_RUN_EXTRA_ARGS":                      "--volume " + containerName + "-cache:/home/builder/.termux-build",
+			"TERMUX_DOCKER_RUN_EXTRA_ARGS":                      cacheMount,
 			"TERMUX_DOCKER_EXEC_EXTRA_ARGS":                     "--env VERSION --env COMMIT --env BUILD_DATE",
 			"TERMUX_PKG_MAKE_PROCESSES":                         strconv.Itoa(runtime.NumCPU()),
 			"TERMUX_RM_ALL_PKGS_BUILT_MARKER_AND_INSTALL_FILES": "false",
