@@ -97,7 +97,10 @@ func staticBuildEnvironment() (map[string]string, error) {
 	case "linux":
 		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz", "-lstdc++", "-lm", "-lpthread", "-ldl", "-lrt")
 	case "darwin":
-		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz", "-lc++", "-lm", "-lpthread")
+		linkerPaths = append(linkerPaths,
+			"-lqtpcre2", "-lz", "-lc++", "-lm", "-lpthread",
+			"-framework", "CoreServices", "-framework", "IOKit", "-framework", "AppKit",
+		)
 	case "windows":
 		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz")
 		if runtime.GOARCH == "arm64" {
