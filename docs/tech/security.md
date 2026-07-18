@@ -23,3 +23,8 @@ URLs and are fetched without the account bearer token. The download request
 does carry the official Bitwarden CLI user-agent and platform headers so that
 client-aware reverse proxies and WAF policies treat it consistently with API
 requests.
+
+Import reads KDBX through the pinned KeePassXC reader and keeps the decrypted
+tree in memory. Record encryption and attachment encryption use the official
+Bitwarden SDK. Mutation and attachment-upload requests carry the official CLI
+user-agent plus mandatory client name, version, and platform device headers.

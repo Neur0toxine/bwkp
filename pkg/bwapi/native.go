@@ -93,6 +93,104 @@ func (s *nativeSession) DownloadAttachment(ctx context.Context, item bw.Item, at
 	return io.NopCloser(bytes.NewReader(content)), nil
 }
 
+func (s *nativeSession) CreateFolder(ctx context.Context, name string) (bw.Folder, error) {
+	payload, err := s.mutate(ctx, map[string]any{"action": "createFolder", "name": name})
+	if err != nil {
+		return bw.Folder{}, err
+	}
+	var folder bw.Folder
+	if err := json.Unmarshal(payload, &folder); err != nil {
+		return bw.Folder{}, fmt.Errorf("decode created folder: %w", err)
+	}
+	return folder, nil
+}
+
+func (s *nativeSession) CreateItem(ctx context.Context, item bw.Item, folderID string) (string, error) {
+	payload, err := s.mutate(ctx, map[string]any{"action": "createItem", "item": item, "folderId": folderID})
+	if err != nil {
+		return "", err
+	}
+	return mutationID(payload)
+}
+
+func (s *nativeSession) UpdateItem(ctx context.Context, id string, item bw.Item, folderID string) error {
+	_, err := s.mutate(ctx, map[string]any{"action": "updateItem", "id": id, "item": item, "folderId": folderID})
+	return err
+}
+
+func (s *nativeSession) TrashItem(ctx context.Context, id string) error {
+	_, err := s.mutate(ctx, map[string]any{"action": "trashItem", "id": id})
+	return err
+}
+
+func (s *nativeSession) RestoreItem(ctx context.Context, id string) error {
+	_, err := s.mutate(ctx, map[string]any{"action": "restoreItem", "id": id})
+	return err
+}
+
+func (s *nativeSession) ArchiveItem(ctx context.Context, id string) error {
+	_, err := s.mutate(ctx, map[string]any{"action": "archiveItem", "id": id})
+	return err
+}
+
+func (s *nativeSession) UnarchiveItem(ctx context.Context, id string) error {
+	_, err := s.mutate(ctx, map[string]any{"action": "unarchiveItem", "id": id})
+	return err
+}
+
+func (s *nativeSession) DeleteAttachment(ctx context.Context, itemID, attachmentID string) error {
+	_, err := s.mutate(ctx, map[string]any{"action": "deleteAttachment", "itemId": itemID, "attachmentId": attachmentID})
+	return err
+}
+
+func (s *nativeSession) UploadAttachment(ctx context.Context, itemID string, attachment bw.Attachment) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	handle, err := s.currentHandle()
+	if err != nil {
+		return err
+	}
+	request, err := json.Marshal(map[string]any{"itemId": itemID, "fileName": attachment.FileName})
+	if err != nil {
+		return err
+	}
+	defer clear(request)
+	response, err := native.UploadAttachment(handle, request, attachment.Content)
+	clear(response)
+	return err
+}
+
+func (s *nativeSession) mutate(ctx context.Context, request any) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	handle, err := s.currentHandle()
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	defer clear(payload)
+	return native.Mutate(handle, payload)
+}
+
+func mutationID(payload []byte) (string, error) {
+	defer clear(payload)
+	var result struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return "", fmt.Errorf("decode mutated item: %w", err)
+	}
+	if result.ID == "" {
+		return "", errors.New("mutated item returned no ID")
+	}
+	return result.ID, nil
+}
+
 func (s *nativeSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

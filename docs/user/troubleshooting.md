@@ -1,6 +1,6 @@
 # Troubleshooting
 
-- A TOTP is intentionally requested on every export when authenticator 2FA is
+- A TOTP is intentionally requested on every export or import when authenticator 2FA is
   configured. Codes are never remembered.
 - `target already exists` is a safety check; use `--force` only when replacement
   is intended.
@@ -11,3 +11,5 @@
   without secrets, and server version. Never attach the generated vault.
 - Builds from source need the dependency family used by KeePassXC 2.7.12,
   notably Qt 5, Botan, Argon2, Minizip, and QRencode development files.
+- Import refuses ambiguous destination matches before making changes. Rename or
+  move duplicate records/folders, or use `--conflict duplicate` when intentional.

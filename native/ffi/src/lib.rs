@@ -129,6 +129,66 @@ pub unsafe extern "C" fn bwkp_download_attachment(
 
 #[unsafe(no_mangle)]
 /// # Safety
+/// `handle` must be live, input must reference its declared length, and outputs must be writable or null.
+pub unsafe extern "C" fn bwkp_mutate(
+    handle: usize,
+    request_ptr: *const u8,
+    request_len: usize,
+    output: *mut Buffer,
+    error: *mut Buffer,
+) -> i32 {
+    let Some(session) = (unsafe { (handle as *const bwkp_bw::Session).as_ref() }) else {
+        return unsafe { set_error(error, "invalid session") };
+    };
+    match std::panic::catch_unwind(AssertUnwindSafe(|| {
+        bwkp_bw::mutate(session, unsafe { bytes(request_ptr, request_len) })
+    })) {
+        Ok(Ok(value)) => {
+            if !output.is_null() {
+                unsafe { *output = Buffer::from_vec(value) };
+            }
+            0
+        }
+        Ok(Err(value)) => unsafe { set_error(error, value) },
+        Err(_) => unsafe { set_error(error, "native Bitwarden mutation panicked") },
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `handle` must be live, inputs must reference their declared lengths, and outputs must be writable or null.
+pub unsafe extern "C" fn bwkp_upload_attachment(
+    handle: usize,
+    request_ptr: *const u8,
+    request_len: usize,
+    content_ptr: *const u8,
+    content_len: usize,
+    output: *mut Buffer,
+    error: *mut Buffer,
+) -> i32 {
+    let Some(session) = (unsafe { (handle as *const bwkp_bw::Session).as_ref() }) else {
+        return unsafe { set_error(error, "invalid session") };
+    };
+    match std::panic::catch_unwind(AssertUnwindSafe(|| {
+        bwkp_bw::upload_attachment(
+            session,
+            unsafe { bytes(request_ptr, request_len) },
+            unsafe { bytes(content_ptr, content_len) },
+        )
+    })) {
+        Ok(Ok(value)) => {
+            if !output.is_null() {
+                unsafe { *output = Buffer::from_vec(value) };
+            }
+            0
+        }
+        Ok(Err(value)) => unsafe { set_error(error, value) },
+        Err(_) => unsafe { set_error(error, "native attachment upload panicked") },
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
 /// `handle` must be zero or a live session returned by `bwkp_login` and not previously closed.
 pub unsafe extern "C" fn bwkp_session_close(handle: usize) {
     if handle != 0 {

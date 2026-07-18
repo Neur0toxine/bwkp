@@ -10,6 +10,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bitwarden-api-api.workspace = true
+bitwarden-api-base.workspace = true
 bitwarden-auth.workspace = true
 bitwarden-collections.workspace = true
 bitwarden-core.workspace = true

@@ -56,3 +56,37 @@ The default is KDBX 4.1, AES-256, gzip, and Argon2id calibrated near one second.
 
 Use `bwkp version` in bug reports. It prints the exporter version, commit,
 platform, KeePassXC version, and Bitwarden SDK version.
+
+## Import
+
+Import uses the same endpoint and secret flags as export, but reads an existing
+encrypted KDBX database:
+
+```text
+bwkp import --server https://vault.example.com --email alice@example.com --input vault.kdbx
+```
+
+The database is decrypted in memory by the pinned KeePassXC core, converted,
+then written to the personal Bitwarden vault with the official SDK. Attachments
+are encrypted before upload. No decrypted database, JSON export, credential, or
+attachment is staged on disk.
+
+When a destination record already exists, `--conflict` selects one of four
+behaviors:
+
+- `skip` (default): leave the existing record unchanged.
+- `delete`: move the existing record to trash and create a replacement.
+- `duplicate`: always create another record.
+- `update`: preserve the destination ID and replace its fields and attachments.
+
+Source item ID is preferred when protected export metadata is present;
+otherwise an exact folder, item type, and title match is used. Ambiguous matches
+stop before any record is changed.
+
+Generic KeePassXC records are inferred as logins, cards, identities, SSH keys,
+or secure notes. Bitwarden source metadata restores bank accounts, driver
+licenses, and passports. An unsupported item kind is imported as a complete
+secure-note fallback and reported as a warning. Conversion failures are fatal
+unless `--allow-lossy` is supplied; that flag permits the affected entries to
+be skipped. `--append-source` adds protected `KP.SourceJSON` preservation data
+without embedding attachment bytes.

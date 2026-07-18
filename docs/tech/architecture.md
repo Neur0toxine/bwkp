@@ -15,6 +15,7 @@ flowchart LR
     APP --> DB[pkg/kpdb]
     DB --> AF[internal/atomicfile]
     AF --> KP[native/kpdb: KeePassXC C++ core]
+    DB --> KP
 ```
 
 ## Package responsibilities
@@ -33,12 +34,17 @@ flowchart LR
 - `pkg/dto/bw`: decrypted, SDK-neutral vault snapshot.
 - `pkg/dto/kp`: writer-neutral database tree.
 - `pkg/convert`: pure deterministic mapping; no I/O and no SDK dependency.
-- `pkg/kpdb`: database options and writer interface.
+- `pkg/kpdb`: database credentials plus reader and writer interfaces.
 - `native/bw`: Rust ownership of login, 2FA, sync, organization crypto, item
-  decryption, attachment download and decryption.
-- `native/kpdb`: C++ ownership of KeePassXC object construction, KDF
+  encryption/decryption, vault mutations, and attachment transfer/crypto.
+- `native/kpdb`: C++ ownership of KeePassXC object parsing/construction, KDF
   calibration, KDBX 4.1 writing, and authenticated reopen verification.
 - `native/ffi`: Rust C ABI for Bitwarden only.
+
+Import reverses this flow: KeePassXC decrypts and parses the KDBX directly into
+the neutral DTO, the pure converter creates a deterministic mutation plan, and
+the official SDK encrypts folders, records, and attachments before API upload.
+All conflicts and folder ambiguities are planned before the first mutation.
 
 ## Export sequence
 

@@ -92,7 +92,7 @@ func TestExportStopsOnAttachmentFailure(t *testing.T) {
 }
 
 type fakeClient struct {
-	session       *fakeSession
+	session       bwapi.Session
 	logins        int
 	lastTOTP      string
 	authenticated bool

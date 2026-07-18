@@ -44,3 +44,27 @@ func TestNativeWriterProducesKeePassXCCompatibleDatabase(t *testing.T) {
 		t.Fatalf("KeePassXC could not open output: %v\n%s", err, output.String())
 	}
 }
+
+func TestNativeReaderRoundTripsKeePassXCData(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "read.kdbx")
+	options := kpdb.DefaultOptions()
+	options.Iterations, options.TargetTime = 10, 0
+	options.MemoryKiB, options.Parallelism = 8*1024, 1
+	database := kp.Database{Name: "Read Test", Root: kp.Group{Name: "Root", Groups: []kp.Group{{Name: "Folder", Entries: []kp.Entry{{
+		Title: "Entry", Username: "alice", Password: kp.ProtectedString{Value: "secret"},
+		Fields:      map[string]kp.Value{"Hidden": {Value: "value", Protected: true}},
+		Attachments: []kp.Attachment{{Name: "hello.bin", Content: []byte{0, 1, 2}}},
+	}}}}}}
+	credentials := kpdb.Credentials{Password: []byte("password")}
+	if err := kpdb.NewNativeWriter().WriteFile(t.Context(), target, database, credentials, options, false); err != nil {
+		t.Fatal(err)
+	}
+	read, err := kpdb.NewNativeReader().ReadFile(t.Context(), target, credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := read.Root.Groups[0].Entries[0]
+	if entry.UUID == "" || entry.Username != "alice" || entry.Password.Value != "secret" || !entry.Fields["Hidden"].Protected || !bytes.Equal(entry.Attachments[0].Content, []byte{0, 1, 2}) {
+		t.Fatalf("entry = %+v", entry)
+	}
+}

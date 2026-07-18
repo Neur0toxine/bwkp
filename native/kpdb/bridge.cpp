@@ -19,7 +19,10 @@
 #include <QString>
 
 #include "core/Database.h"
+#include "core/CustomData.h"
 #include "core/Entry.h"
+#include "core/EntryAttachments.h"
+#include "core/EntryAttributes.h"
 #include "core/Group.h"
 #include "core/Metadata.h"
 #include "crypto/Crypto.h"
@@ -264,6 +267,148 @@ void verify_database(const QString& path, const QJsonObject& credentials)
     }
 }
 
+QString datetime(const QDateTime& value)
+{
+    return value.isValid() ? value.toUTC().toString(Qt::ISODateWithMs) : QString{};
+}
+
+QJsonObject serialize_value(const QString& value, bool protect)
+{
+    return QJsonObject{{"value", value}, {"protected", protect}};
+}
+
+QJsonObject serialize_entry(const Entry* entry);
+
+QJsonArray serialize_history(const Entry* entry)
+{
+    QJsonArray result;
+    for (const auto* history : entry->historyItems()) {
+        result.append(serialize_entry(history));
+    }
+    return result;
+}
+
+QJsonObject serialize_entry(const Entry* entry)
+{
+    QJsonObject fields;
+    auto field_names = entry->attributes()->customKeys();
+    std::sort(field_names.begin(), field_names.end());
+    for (const auto& name : field_names) {
+        fields.insert(name, serialize_value(entry->attributes()->value(name), entry->attributes()->isProtected(name)));
+    }
+
+    QJsonArray attachments;
+    auto attachment_names = entry->attachments()->keys();
+    std::sort(attachment_names.begin(), attachment_names.end());
+    for (const auto& name : attachment_names) {
+        attachments.append(QJsonObject{
+            {"name", name},
+            {"content", QString::fromLatin1(entry->attachments()->value(name).toBase64())},
+        });
+    }
+
+    QJsonObject custom_data;
+    auto custom_names = entry->customData()->keys();
+    std::sort(custom_names.begin(), custom_names.end());
+    for (const auto& name : custom_names) {
+        custom_data.insert(name, serialize_value(entry->customData()->value(name), entry->customData()->isProtected(name)));
+    }
+
+    QJsonObject windows;
+    for (const auto& association : entry->autoTypeAssociations()->getAll()) {
+        windows.insert(association.window, association.sequence);
+    }
+    const auto& times = entry->timeInfo();
+    QJsonObject result{
+        {"uuid", entry->uuidToHex()},
+        {"title", entry->title()},
+        {"username", entry->username()},
+        {"password", QJsonObject{{"value", entry->password()}}},
+        {"url", entry->url()},
+        {"notes", entry->notes()},
+        {"tags", QJsonArray::fromStringList(entry->tagList())},
+        {"fields", fields},
+        {"attachments", attachments},
+        {"history", serialize_history(entry)},
+        {"created", datetime(times.creationTime())},
+        {"modified", datetime(times.lastModificationTime())},
+        {"accessed", datetime(times.lastAccessTime())},
+        {"recycled", entry->isRecycled()},
+        {"icon", entry->iconNumber()},
+        {"iconUuid", entry->iconUuid().toString(QUuid::WithoutBraces)},
+        {"foreground", entry->foregroundColor()},
+        {"background", entry->backgroundColor()},
+        {"overrideUrl", entry->overrideUrl()},
+        {"autoType", QJsonObject{
+            {"enabled", entry->autoTypeEnabled()},
+            {"obfuscation", entry->autoTypeObfuscation()},
+            {"sequence", entry->defaultAutoTypeSequence()},
+            {"windows", windows},
+        }},
+        {"customData", custom_data},
+    };
+    if (times.expires()) {
+        result.insert("expires", datetime(times.expiryTime()));
+    }
+    return result;
+}
+
+QJsonObject serialize_group(const Group* group, const Metadata* metadata)
+{
+    QJsonArray groups;
+    for (const auto* child : group->children()) {
+        groups.append(serialize_group(child, metadata));
+    }
+    QJsonArray entries;
+    for (const auto* entry : group->entries()) {
+        entries.append(serialize_entry(entry));
+    }
+    return QJsonObject{
+        {"uuid", group->uuidToHex()},
+        {"name", group->name()},
+        {"recycleBin", group == metadata->recycleBin()},
+        {"templates", group == metadata->entryTemplatesGroup()},
+        {"groups", groups},
+        {"entries", entries},
+    };
+}
+
+QByteArray read_database(const QString& path, const QJsonObject& credentials)
+{
+    initialize();
+    QFile input(path);
+    if (!input.open(QIODevice::ReadOnly)) {
+        throw std::runtime_error(QString("open KDBX input: %1").arg(input.errorString()).toStdString());
+    }
+    Database database;
+    KeePass2Reader reader;
+    if (!reader.readDatabase(&input, key(credentials), &database)) {
+        throw std::runtime_error(QString("read KDBX: %1").arg(reader.errorString()).toStdString());
+    }
+    if (database.rootGroup() == nullptr) {
+        throw std::runtime_error("KDBX database has no root group");
+    }
+    return QJsonDocument(QJsonObject{
+        {"name", database.metadata()->name()},
+        {"root", serialize_group(database.rootGroup(), database.metadata())},
+    }).toJson(QJsonDocument::Compact);
+}
+
+void set_buffer(bwkp_kpdb_buffer* output, const QByteArray& value)
+{
+    if (output == nullptr) {
+        return;
+    }
+    output->len = static_cast<size_t>(value.size());
+    output->ptr = static_cast<uint8_t*>(std::malloc(output->len));
+    if (output->ptr == nullptr && output->len != 0) {
+        throw std::bad_alloc();
+    }
+    if (output->len != 0) {
+        std::memcpy(output->ptr, value.constData(), output->len);
+    }
+}
+
 int fail(bwkp_kpdb_buffer* output, const std::exception& exception)
 {
     if (output != nullptr) {
@@ -311,6 +456,24 @@ extern "C" int32_t bwkp_kpdb_verify(const char* path_ptr,
 {
     try {
         verify_database(text(path_ptr, path_len), object(credentials_ptr, credentials_len, "credentials"));
+        return 0;
+    } catch (const std::exception& exception) {
+        return fail(error, exception);
+    } catch (...) {
+        const std::runtime_error exception("unknown KeePassXC bridge failure");
+        return fail(error, exception);
+    }
+}
+
+extern "C" int32_t bwkp_kpdb_read(const char* path_ptr,
+                                    size_t path_len,
+                                    const uint8_t* credentials_ptr,
+                                    size_t credentials_len,
+                                    bwkp_kpdb_buffer* output,
+                                    bwkp_kpdb_buffer* error)
+{
+    try {
+        set_buffer(output, read_database(text(path_ptr, path_len), object(credentials_ptr, credentials_len, "credentials")));
         return 0;
     } catch (const std::exception& exception) {
         return fail(error, exception);

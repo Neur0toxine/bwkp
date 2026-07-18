@@ -212,7 +212,7 @@ func mapCard(entry *kp.Entry, card bw.Card) {
 
 func mapIdentity(entry *kp.Entry, identity bw.Identity) {
 	values := []struct{ name, value string }{
-		{"Title", identity.Title}, {"First Name", identity.FirstName},
+		{"Identity Title", identity.Title}, {"First Name", identity.FirstName},
 		{"Middle Name", identity.MiddleName}, {"Last Name", identity.LastName},
 		{"Address 1", identity.Address1}, {"Address 2", identity.Address2},
 		{"Address 3", identity.Address3}, {"City", identity.City},
@@ -255,6 +255,9 @@ func mapStructuredData(entry *kp.Entry, data map[string]any) {
 func mapCustomFields(entry *kp.Entry, fields []bw.Field) {
 	for i, field := range fields {
 		name := cmp.Or(strings.TrimSpace(field.Name), fmt.Sprintf("Bitwarden Field %d", i+1))
+		if isStandardKeePassField(name) {
+			name = "Bitwarden " + name
+		}
 		name = uniqueFieldName(entry.Fields, name)
 		entry.Fields[name] = kp.Value{Value: field.Value, Protected: field.Type == 1}
 		if field.Linked != nil {
@@ -264,6 +267,10 @@ func mapCustomFields(entry *kp.Entry, fields []bw.Field) {
 			entry.Fields[uniqueFieldName(entry.Fields, "BW.FieldType."+name)] = protected(strconv.Itoa(field.Type))
 		}
 	}
+}
+
+func isStandardKeePassField(name string) bool {
+	return name == "Title" || name == "UserName" || name == "Password" || name == "URL" || name == "Notes"
 }
 
 func mapAttachments(entry *kp.Entry, attachments []bw.Attachment) {

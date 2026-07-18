@@ -9,12 +9,16 @@ type Database struct {
 }
 
 type Group struct {
-	Name    string  `json:"name"`
-	Groups  []Group `json:"groups,omitzero"`
-	Entries []Entry `json:"entries,omitzero"`
+	UUID       string  `json:"uuid,omitzero"`
+	Name       string  `json:"name"`
+	RecycleBin bool    `json:"recycleBin,omitzero"`
+	Templates  bool    `json:"templates,omitzero"`
+	Groups     []Group `json:"groups,omitzero"`
+	Entries    []Entry `json:"entries,omitzero"`
 }
 
 type Entry struct {
+	UUID        string           `json:"uuid,omitzero"`
 	Title       string           `json:"title"`
 	Username    string           `json:"username,omitzero"`
 	Password    ProtectedString  `json:"password,omitzero"`
@@ -28,6 +32,21 @@ type Entry struct {
 	Modified    time.Time        `json:"modified,omitzero"`
 	Accessed    time.Time        `json:"accessed,omitzero"`
 	Expires     *time.Time       `json:"expires,omitzero"`
+	Recycled    bool             `json:"recycled,omitzero"`
+	Icon        int              `json:"icon,omitzero"`
+	IconUUID    string           `json:"iconUuid,omitzero"`
+	Foreground  string           `json:"foreground,omitzero"`
+	Background  string           `json:"background,omitzero"`
+	OverrideURL string           `json:"overrideUrl,omitzero"`
+	AutoType    AutoType         `json:"autoType,omitzero"`
+	CustomData  map[string]Value `json:"customData,omitzero"`
+}
+
+type AutoType struct {
+	Enabled     bool              `json:"enabled,omitzero"`
+	Obfuscation int               `json:"obfuscation,omitzero"`
+	Sequence    string            `json:"sequence,omitzero"`
+	Windows     map[string]string `json:"windows,omitzero"`
 }
 
 type ProtectedString struct {

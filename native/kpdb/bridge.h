@@ -27,6 +27,12 @@ int32_t bwkp_kpdb_verify(const char* path_ptr,
                           const uint8_t* credentials_ptr,
                           size_t credentials_len,
                           bwkp_kpdb_buffer* error);
+int32_t bwkp_kpdb_read(const char* path_ptr,
+                        size_t path_len,
+                        const uint8_t* credentials_ptr,
+                        size_t credentials_len,
+                        bwkp_kpdb_buffer* output,
+                        bwkp_kpdb_buffer* error);
 const char* bwkp_keepassxc_version(void);
 void bwkp_kpdb_buffer_free(bwkp_kpdb_buffer buffer);
 

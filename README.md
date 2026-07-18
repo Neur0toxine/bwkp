@@ -1,15 +1,16 @@
 # bwkp
 
-`bwkp` performs a fresh Bitwarden/Vaultwarden login and exports the decrypted
-vault to a modern KeePassXC database. It does not use the Bitwarden CLI, keep a
-session, or write an intermediate plaintext export.
+`bwkp` transfers records between Bitwarden/Vaultwarden and modern KeePassXC
+databases. It performs a fresh login for each export or import, does not use the
+Bitwarden CLI, does not keep a session, and never writes an intermediate
+plaintext export.
 
 The native compatibility boundary is deliberately narrow:
 
 - Bitwarden access and decryption use the official Rust SDK 3.0.0, pinned to
   commit `7fd530e4852639d7391d062760891631ee9c15c1`. Requests use the official
   Bitwarden CLI 2026.6.0 client identity and platform-specific user agent.
-- KDBX writing and verification use the statically linked KeePassXC 2.7.12
+- KDBX reading, writing, and verification use the statically linked KeePassXC 2.7.12
   C++ core. There is no independent KDBX implementation.
 
 Run `bwkp version` to see both upstream versions compiled into a binary.
@@ -22,6 +23,8 @@ unpack it, then run either:
 ```text
 bwkp export --region us --email alice@example.com --output vault.kdbx
 bwkp export --server https://vault.example.com --email alice@example.com --output vault.kdbx
+bwkp import --region us --email alice@example.com --input vault.kdbx
+bwkp import --server https://vault.example.com --email alice@example.com --input vault.kdbx
 ```
 
 The program prompts for the master password, authenticator code when required,

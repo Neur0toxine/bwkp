@@ -188,9 +188,9 @@ func TestConvertMapsSpecializedItemsAndDuplicateData(t *testing.T) {
 	linked := 7
 	vault := bw.Vault{Items: []bw.Item{
 		{ID: "card", Type: bw.ItemTypeCard, Name: "Card", Card: &bw.Card{CardholderName: "Alice", Number: "4111", Code: "123"}},
-		{ID: "identity", Type: bw.ItemTypeIdentity, Name: "Identity", Identity: &bw.Identity{FirstName: "Alice", Email: "alice@example.test"}},
+		{ID: "identity", Type: bw.ItemTypeIdentity, Name: "Identity", Identity: &bw.Identity{Title: "Dr", FirstName: "Alice", Email: "alice@example.test"}},
 		{ID: "ssh", Type: bw.ItemTypeSSHKey, Name: "SSH", SSHKey: &bw.SSHKey{PrivateKey: "PRIVATE", PublicKey: "PUBLIC", Fingerprint: "SHA256:test"}, Attachments: []bw.Attachment{{FileName: "id_ssh", Content: []byte("collision")}}},
-		{ID: "bank", Type: bw.ItemTypeBankAccount, Name: "Bank", Reprompt: true, Data: map[string]any{"accountNumber": "123"}, Fields: []bw.Field{{Name: "duplicate", Value: "one"}, {Name: "duplicate", Value: "two", Type: 1, Linked: &linked}, {Value: "unnamed", Type: 2}}},
+		{ID: "bank", Type: bw.ItemTypeBankAccount, Name: "Bank", Reprompt: true, Data: map[string]any{"accountNumber": "123"}, Fields: []bw.Field{{Name: "duplicate", Value: "one"}, {Name: "duplicate", Value: "two", Type: 1, Linked: &linked}, {Value: "unnamed", Type: 2}, {Name: "Title", Value: "custom title"}}},
 	}}
 	db, report, err := convert.New().Convert(vault)
 	if err != nil {
@@ -207,7 +207,7 @@ func TestConvertMapsSpecializedItemsAndDuplicateData(t *testing.T) {
 	if !byTitle["Card"].Fields["Card Number"].Protected {
 		t.Fatal("card number is not protected")
 	}
-	if byTitle["Identity"].Fields["Email"].Value != "alice@example.test" {
+	if byTitle["Identity"].Fields["Email"].Value != "alice@example.test" || byTitle["Identity"].Fields["Identity Title"].Value != "Dr" {
 		t.Fatal("identity email missing")
 	}
 	if len(byTitle["SSH"].Attachments) != 3 || byTitle["SSH"].Attachments[2].Name != "id_ssh (2)" {
@@ -215,6 +215,9 @@ func TestConvertMapsSpecializedItemsAndDuplicateData(t *testing.T) {
 	}
 	if byTitle["Bank"].Fields["duplicate (2)"].Value != "two" || byTitle["Bank"].Fields["Bitwarden Field 3"].Value != "unnamed" {
 		t.Fatal("custom fields not preserved")
+	}
+	if byTitle["Bank"].Fields["Bitwarden Title"].Value != "custom title" {
+		t.Fatal("reserved custom field was not renamed")
 	}
 	if byTitle["Bank"].Fields["BW.Reprompt"].Value != "true" || byTitle["Bank"].Fields["BW.LinkedField.duplicate (2)"].Value != "7" || byTitle["Bank"].Fields["BW.FieldType.Bitwarden Field 3"].Value != "2" {
 		t.Fatalf("unconverted source semantics missing: %+v", byTitle["Bank"].Fields)

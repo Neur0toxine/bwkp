@@ -8,6 +8,7 @@ port=${BWKP_VAULTWARDEN_PORT:-18080}
 backend_port=${BWKP_VAULTWARDEN_BACKEND_PORT:-18081}
 server="https://localhost:$port"
 email="bwkp-e2e@example.test"
+import_email="bwkp-import-e2e@example.test"
 master_password="E2E master password 2026!"
 database_password="E2E database password 2026!"
 totp_secret="JBSWY3DPEHPK3PXP"
@@ -22,6 +23,9 @@ trap cleanup EXIT
 
 rm -rf "$state"
 mkdir -p "$state/vaultwarden" "$state/cli" "$state/output"
+printf '%s\n' "$master_password" >"$state/master-password"
+printf '%s\n' "$database_password" >"$state/database-password"
+chmod 600 "$state/master-password" "$state/database-password"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
   -keyout "$state/ca-key.pem" -out "$state/ca.pem" -subj "/CN=bwkp e2e CA" \
   -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
@@ -46,9 +50,17 @@ if [[ "$waf_status" != "401" ]]; then
   echo "e2e WAF did not reject an attachment request without a Bitwarden user-agent" >&2
   exit 1
 fi
+mutation_status=$(curl --cacert "$state/ca.pem" --silent --output /dev/null --write-out '%{http_code}' \
+  --request POST "$server/api/ciphers")
+if [[ "$mutation_status" != "401" ]]; then
+  echo "e2e WAF did not reject a mutation without mandatory Bitwarden headers" >&2
+  exit 1
+fi
 
 cargo run --quiet --manifest-path "$root/Cargo.toml" -p bwkp-e2e-register -- \
   "$server" "$email" "$master_password" "$state/ca.pem"
+cargo run --quiet --manifest-path "$root/Cargo.toml" -p bwkp-e2e-register -- \
+  "$server" "$import_email" "$master_password" "$state/ca.pem"
 ssh-keygen -q -t ed25519 -N "" -C bwkp-e2e -f "$state/id_ed25519"
 ssh_fingerprint=$(ssh-keygen -lf "$state/id_ed25519.pub" -E sha256 | awk '{print $2}')
 node - "$root/test/e2e/fixtures/vault.json" "$state/vault.json" "$state/id_ed25519" "$state/id_ed25519.pub" "$ssh_fingerprint" <<'NODE'
@@ -71,6 +83,7 @@ session=$("${bw[@]}" login --raw --nointeraction "$email" "$master_password")
 
 item_id=$("${bw[@]}" --session "$session" list items --search "Attachment Item" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].id))')
 "${bw[@]}" --session "$session" create attachment --file "$root/test/e2e/fixtures/attachment.bin" --itemid "$item_id" >/dev/null
+"${bw[@]}" --session "$session" create attachment --file "$root/test/e2e/fixtures/attachment-second.bin" --itemid "$item_id" >/dev/null
 archive_id=$("${bw[@]}" --session "$session" list items --search "Archived Item" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].id))')
 delete_id=$("${bw[@]}" --session "$session" list items --search "Deleted Item" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].id))')
 "${bw[@]}" --session "$session" archive item "$archive_id" >/dev/null
@@ -88,18 +101,22 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-printf '%s\n' "$master_password" >"$state/master-password"
-printf '%s\n' "$database_password" >"$state/database-password"
 go run "$root/test/e2e/totp" "$totp_secret" >"$state/totp"
-chmod 600 "$state/master-password" "$state/database-password" "$state/totp"
+chmod 600 "$state/totp"
 
 "$root/dist/bwkp" export \
   --server "$server" --email "$email" --output "$state/output/vault.kdbx" \
   --master-password-file "$state/master-password" --database-password-file "$state/database-password" \
-  --totp-file "$state/totp" --kdf-memory-kib 8192 --kdf-parallelism 1 --kdf-iterations 10
+  --totp-file "$state/totp" --append-source --kdf-memory-kib 8192 --kdf-parallelism 1 --kdf-iterations 10
+
+if ! printf '%s\n' "$database_password" | keepassxc-cli add -q --notes "Unsupported KeePassXC data preserved as a note." \
+  "$state/output/vault.kdbx" "Personal/Unfiled/Unsupported KeePassXC Entry"; then
+  listing=$(printf '%s\n' "$database_password" | keepassxc-cli ls -q -R -f "$state/output/vault.kdbx")
+  grep -F "Personal/Unfiled/Unsupported KeePassXC Entry" <<<"$listing" >/dev/null
+fi
 
 listing=$(printf '%s\n' "$database_password" | keepassxc-cli ls -q -R -f "$state/output/vault.kdbx")
-for title in "Complex Login" "Secure Note" "Payment Card" "Full Identity" "SSH Key" "Attachment Item" "Archived Item" "Deleted Item"; do
+for title in "Complex Login" "Secure Note" "Payment Card" "Full Identity" "SSH Key" "Attachment Item" "Archived Item" "Deleted Item" "Unsupported KeePassXC Entry"; do
   grep -F "$title" <<<"$listing" >/dev/null
 done
 printf '%s\n' "$database_password" | keepassxc-cli db-info -q "$state/output/vault.kdbx" >/dev/null
@@ -116,3 +133,76 @@ printf '%s\n' "$database_password" | keepassxc-cli attachment-export -q \
   "$state/output/vault.kdbx" "Personal/Unfiled/Attachment Item" attachment.bin \
   "$state/output/attachment.bin"
 cmp "$root/test/e2e/fixtures/attachment.bin" "$state/output/attachment.bin"
+
+mkdir -p "$state/import-cli"
+export BITWARDENCLI_APPDATA_DIR="$state/import-cli"
+"${bw[@]}" config server "$server" >/dev/null
+import_session=$("${bw[@]}" login --raw --nointeraction "$import_email" "$master_password")
+
+run_import() {
+  local mode=$1
+  "$root/dist/bwkp" import \
+    --server "$server" --email "$import_email" --input "$state/output/vault.kdbx" \
+    --master-password-file "$state/master-password" --database-password-file "$state/database-password" \
+    --conflict "$mode" --no-progress
+  "${bw[@]}" --session "$import_session" sync >/dev/null
+}
+
+run_import skip >"$state/import-initial.log"
+grep -F "9 created" "$state/import-initial.log" >/dev/null
+"${bw[@]}" --session "$import_session" list items --raw >"$state/imported-items.json"
+"${bw[@]}" --session "$import_session" list items --trash --raw >"$state/imported-trash.json"
+"${bw[@]}" --session "$import_session" list folders --raw >"$state/imported-folders.json"
+node - "$state/imported-items.json" "$state/imported-folders.json" <<'NODE'
+const fs = require("fs");
+const [itemsPath, foldersPath] = process.argv.slice(2);
+const items = JSON.parse(fs.readFileSync(itemsPath, "utf8"));
+const folders = new Map(JSON.parse(fs.readFileSync(foldersPath, "utf8")).map(folder => [folder.name, folder.id]));
+for (const [title, folder] of [["Complex Login", "Engineering/Production"], ["Secure Note", "Personal"], ["Attachment Item", "Unfiled"]]) {
+  if (items.find(item => item.name === title)?.folderId !== folders.get(folder)) process.exit(1);
+}
+NODE
+run_import skip >"$state/import-skip.log"
+grep -F "9 skipped" "$state/import-skip.log" >/dev/null
+
+initial_login_id=$("${bw[@]}" --session "$import_session" list items --search "Complex Login" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].id))')
+printf '%s\n' "$database_password" | keepassxc-cli edit -q --notes "Updated from KeePassXC" \
+  "$state/output/vault.kdbx" "Personal/Engineering/Production/Complex Login"
+run_import update >"$state/import-update.log"
+grep -F "9 updated" "$state/import-update.log" >/dev/null
+updated_login=$("${bw[@]}" --session "$import_session" list items --search "Complex Login" --raw)
+node -e 'const items=JSON.parse(process.argv[1]); if(items.length!==1 || items[0].id!==process.argv[2] || items[0].notes!=="Updated from KeePassXC") process.exit(1)' \
+  "$updated_login" "$initial_login_id"
+
+attachment_item=$("${bw[@]}" --session "$import_session" list items --search "Attachment Item" --raw)
+node -e 'const items=JSON.parse(process.argv[1]); if(items.length!==1 || items[0].attachments?.length!==2) process.exit(1)' "$attachment_item"
+"$root/dist/bwkp" export \
+  --server "$server" --email "$import_email" --output "$state/output/imported-vault.kdbx" \
+  --master-password-file "$state/master-password" --database-password-file "$state/database-password" \
+  --no-progress --kdf-memory-kib 8192 --kdf-parallelism 1 --kdf-iterations 10 >/dev/null
+printf '%s\n' "$database_password" | keepassxc-cli attachment-export -q \
+  "$state/output/imported-vault.kdbx" "Personal/Unfiled/Attachment Item" attachment.bin \
+  "$state/output/imported-attachment.bin"
+cmp "$root/test/e2e/fixtures/attachment.bin" "$state/output/imported-attachment.bin"
+
+unsupported=$("${bw[@]}" --session "$import_session" list items --search "Unsupported KeePassXC Entry" --raw)
+node -e 'const items=JSON.parse(process.argv[1]); if(items.length!==1 || items[0].type!==2 || !items[0].notes.includes("preserved as a note")) process.exit(1)' "$unsupported"
+run_import delete >"$state/import-delete.log"
+grep -F "9 replaced" "$state/import-delete.log" >/dev/null
+replacement_login_id=$("${bw[@]}" --session "$import_session" list items --search "Complex Login" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].id))')
+if [[ "$replacement_login_id" == "$initial_login_id" ]]; then
+  echo "delete conflict mode did not replace the destination item" >&2
+  exit 1
+fi
+trash=$("${bw[@]}" --session "$import_session" list items --trash --search "Complex Login" --raw)
+node -e 'const items=JSON.parse(process.argv[1]); if(!items.some(item=>item.id===process.argv[2])) process.exit(1)' "$trash" "$initial_login_id"
+
+before_duplicate=$("${bw[@]}" --session "$import_session" list items --search "Complex Login" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).length)))')
+run_import duplicate >"$state/import-duplicate.log"
+grep -F "9 duplicated" "$state/import-duplicate.log" >/dev/null
+after_duplicate=$("${bw[@]}" --session "$import_session" list items --search "Complex Login" --raw | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).length)))')
+if (( after_duplicate != before_duplicate + 1 )); then
+  echo "duplicate conflict mode did not create an additional item" >&2
+  exit 1
+fi
+"${bw[@]}" logout >/dev/null

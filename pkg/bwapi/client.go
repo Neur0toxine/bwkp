@@ -51,6 +51,19 @@ type Session interface {
 	Close() error
 }
 
+type ImportSession interface {
+	Session
+	CreateFolder(context.Context, string) (bw.Folder, error)
+	CreateItem(context.Context, bw.Item, string) (string, error)
+	UpdateItem(context.Context, string, bw.Item, string) error
+	TrashItem(context.Context, string) error
+	RestoreItem(context.Context, string) error
+	ArchiveItem(context.Context, string) error
+	UnarchiveItem(context.Context, string) error
+	DeleteAttachment(context.Context, string, string) error
+	UploadAttachment(context.Context, string, bw.Attachment) error
+}
+
 func ResolveEndpoints(region Region, server, apiURL, identityURL string, caCert []byte) (Endpoints, error) {
 	if server != "" && region != "" {
 		return Endpoints{}, errors.New("region and server are mutually exclusive")

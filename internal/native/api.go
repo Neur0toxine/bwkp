@@ -17,10 +17,17 @@ func Sync(handle Handle) ([]byte, error)        { return syncVault(handle) }
 func DownloadAttachment(handle Handle, request []byte) ([]byte, error) {
 	return downloadAttachment(handle, request)
 }
+func Mutate(handle Handle, request []byte) ([]byte, error) { return mutate(handle, request) }
+func UploadAttachment(handle Handle, request, content []byte) ([]byte, error) {
+	return uploadAttachment(handle, request, content)
+}
 func Close(handle Handle) error { return closeHandle(handle) }
 func WriteKDBX(path string, database, credentials, options []byte) error {
 	return writeKDBX(path, database, credentials, options)
 }
 func VerifyKDBX(path string, credentials []byte) error { return verifyKDBX(path, credentials) }
-func KeePassXCVersion() string                         { return keepassXCVersion() }
-func BitwardenSDKVersion() string                      { return bitwardenSDKVersion() }
+func ReadKDBX(path string, credentials []byte) ([]byte, error) {
+	return readKDBX(path, credentials)
+}
+func KeePassXCVersion() string    { return keepassXCVersion() }
+func BitwardenSDKVersion() string { return bitwardenSDKVersion() }

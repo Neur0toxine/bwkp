@@ -13,9 +13,18 @@ const server = https.createServer(
   },
   (request, response) => {
     const userAgent = request.headers["user-agent"] ?? "";
-    if (request.url?.startsWith("/attachments/") && !userAgent.startsWith("Bitwarden_CLI/")) {
+	const mutation = ["POST", "PUT", "DELETE"].includes(request.method ?? "") &&
+		(request.url?.startsWith("/api/ciphers") || request.url?.startsWith("/api/folders"));
+	const attachment = request.url?.startsWith("/attachments/");
+	const hasOfficialHeaders = userAgent.startsWith("Bitwarden_CLI/") &&
+		request.headers["bitwarden-client-name"] === "cli" &&
+		Boolean(request.headers["bitwarden-client-version"]) &&
+		Boolean(request.headers["device-type"]);
+	const rejected = (attachment && !hasOfficialHeaders) ||
+		(mutation && !hasOfficialHeaders);
+    if (rejected) {
       response.writeHead(401, { "content-type": "text/plain" });
-      response.end("attachment request rejected by e2e WAF\n");
+		response.end("request rejected by e2e WAF: official client headers are required\n");
       return;
     }
 

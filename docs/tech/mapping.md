@@ -23,3 +23,17 @@ cannot be converted are skipped and reported as warnings.
 Sends are outside the vault sync/export scope. Deleted and archived ciphers are
 included. Attachment bytes never enter the JSON source field; they are added to
 the KeePassXC attachment pool directly.
+
+On import, protected `BW.SourceJSON`, `BW.ItemType`, and `BW.ItemID` metadata is
+used when present, while current KDBX values win over stored source values.
+URI match rules, linked/custom field kinds, reprompt, TOTP, passkeys, folders,
+archive/trash state, SSH keys, and attachments are restored. Bank, driver
+license, and passport attributes reconstruct their structured Bitwarden types.
+Without source type metadata, native KeePassXC fields are deterministically
+inferred as login, card, identity, SSH key, or secure note. Unknown explicit
+types become secure notes containing all entry data and produce a warning.
+
+`KP.SourceJSON`, enabled by import `--append-source`, records the KDBX entry and
+attachment names, sizes, and SHA-256 digests. It deliberately excludes
+attachment content. An actual conversion failure stops the import unless
+`--allow-lossy` permits skipping that entry.

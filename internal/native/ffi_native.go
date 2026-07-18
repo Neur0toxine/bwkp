@@ -26,9 +26,12 @@ const char *bwkp_bitwarden_sdk_version(void);
 uintptr_t bwkp_login(const uint8_t *request_ptr, size_t request_len, bwkp_buffer *output, bwkp_buffer *error);
 int32_t bwkp_sync(uintptr_t handle, bwkp_buffer *output, bwkp_buffer *error);
 int32_t bwkp_download_attachment(uintptr_t handle, const uint8_t *request_ptr, size_t request_len, bwkp_buffer *output, bwkp_buffer *error);
+int32_t bwkp_mutate(uintptr_t handle, const uint8_t *request_ptr, size_t request_len, bwkp_buffer *output, bwkp_buffer *error);
+int32_t bwkp_upload_attachment(uintptr_t handle, const uint8_t *request_ptr, size_t request_len, const uint8_t *content_ptr, size_t content_len, bwkp_buffer *output, bwkp_buffer *error);
 void bwkp_session_close(uintptr_t handle);
 int32_t bwkp_kpdb_write(const char *path_ptr, size_t path_len, const uint8_t *database_ptr, size_t database_len, const uint8_t *credentials_ptr, size_t credentials_len, const uint8_t *options_ptr, size_t options_len, bwkp_kpdb_buffer *error);
 int32_t bwkp_kpdb_verify(const char *path_ptr, size_t path_len, const uint8_t *credentials_ptr, size_t credentials_len, bwkp_kpdb_buffer *error);
+int32_t bwkp_kpdb_read(const char *path_ptr, size_t path_len, const uint8_t *credentials_ptr, size_t credentials_len, bwkp_kpdb_buffer *output, bwkp_kpdb_buffer *error);
 const char *bwkp_keepassxc_version(void);
 void bwkp_kpdb_buffer_free(bwkp_kpdb_buffer buffer);
 */
@@ -69,6 +72,29 @@ func downloadAttachment(handle Handle, request []byte) ([]byte, error) {
 	return takeBuffer(output), nil
 }
 
+func mutate(handle Handle, request []byte) ([]byte, error) {
+	var output, nativeError C.bwkp_buffer
+	code := C.bwkp_mutate(C.uintptr_t(handle), bytePointer(request), C.size_t(len(request)), &output, &nativeError)
+	if err := resultError(code, nativeError); err != nil {
+		freeBuffer(output)
+		return nil, err
+	}
+	return takeBuffer(output), nil
+}
+
+func uploadAttachment(handle Handle, request, content []byte) ([]byte, error) {
+	var output, nativeError C.bwkp_buffer
+	code := C.bwkp_upload_attachment(
+		C.uintptr_t(handle), bytePointer(request), C.size_t(len(request)),
+		bytePointer(content), C.size_t(len(content)), &output, &nativeError,
+	)
+	if err := resultError(code, nativeError); err != nil {
+		freeBuffer(output)
+		return nil, err
+	}
+	return takeBuffer(output), nil
+}
+
 func closeHandle(handle Handle) error {
 	C.bwkp_session_close(C.uintptr_t(handle))
 	return nil
@@ -94,6 +120,24 @@ func verifyKDBX(path string, credentials []byte) error {
 		bytePointer(credentials), C.size_t(len(credentials)), &nativeError,
 	)
 	return kpdbResultError(code, nativeError)
+}
+
+func readKDBX(path string, credentials []byte) ([]byte, error) {
+	var output, nativeError C.bwkp_kpdb_buffer
+	pathBytes := []byte(path)
+	code := C.bwkp_kpdb_read(
+		(*C.char)(unsafe.Pointer(bytePointer(pathBytes))), C.size_t(len(pathBytes)),
+		bytePointer(credentials), C.size_t(len(credentials)), &output, &nativeError,
+	)
+	if err := kpdbResultError(code, nativeError); err != nil {
+		C.bwkp_kpdb_buffer_free(output)
+		return nil, err
+	}
+	defer C.bwkp_kpdb_buffer_free(output)
+	if output.ptr == nil || output.len == 0 {
+		return nil, errors.New("KeePassXC reader returned no database")
+	}
+	return C.GoBytes(unsafe.Pointer(output.ptr), C.int(output.len)), nil
 }
 
 func keepassXCVersion() string    { return C.GoString(C.bwkp_keepassxc_version()) }

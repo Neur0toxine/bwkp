@@ -34,6 +34,8 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "export":
 		return c.export(ctx, args[1:])
+	case "import":
+		return c.importDatabase(ctx, args[1:])
 	case "version":
 		_, err := fmt.Fprintf(c.stdout,
 			"bwkp %s (%s, %s, %s/%s)\nKeePassXC: %s\nBitwarden SDK: %s\n",
@@ -47,6 +49,100 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 		c.usage()
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func (c *CLI) importDatabase(ctx context.Context, args []string) error {
+	flags := flag.NewFlagSet("bwkp import", flag.ContinueOnError)
+	flags.SetOutput(c.stderr)
+	var region, server, apiURL, identityURL, caCert, email, input string
+	var masterPasswordFile, totpFile, databasePasswordFile, keyFile, conflict string
+	var keyFileOnly, noProgress, appendSource, allowLossy bool
+	flags.StringVar(&region, "region", "", "Bitwarden cloud region: us or eu")
+	flags.StringVar(&server, "server", "", "self-hosted Vaultwarden base URL")
+	flags.StringVar(&apiURL, "api-url", "", "advanced API endpoint override")
+	flags.StringVar(&identityURL, "identity-url", "", "advanced identity endpoint override")
+	flags.StringVar(&caCert, "ca-cert", "", "PEM certificate authority for a self-hosted server")
+	flags.StringVar(&email, "email", "", "Bitwarden account email")
+	flags.StringVar(&input, "input", "", "source .kdbx path (required)")
+	flags.StringVar(&masterPasswordFile, "master-password-file", "", "read the master password from a file")
+	flags.StringVar(&totpFile, "totp-file", "", "read authenticator TOTP from a file")
+	flags.StringVar(&databasePasswordFile, "database-password-file", "", "read the database password from a file")
+	flags.StringVar(&keyFile, "key-file", "", "use an existing KeePass key file")
+	flags.BoolVar(&keyFileOnly, "key-file-only", false, "do not use a database password")
+	flags.BoolVar(&noProgress, "no-progress", false, "disable interactive progress bars")
+	flags.BoolVar(&appendSource, "append-source", false, "append complete protected KeePassXC source metadata")
+	flags.BoolVar(&allowLossy, "allow-lossy", false, "skip entries that cannot be preserved and show warnings")
+	flags.StringVar(&conflict, "conflict", string(app.ConflictSkip), "existing item behavior: skip, delete, duplicate, or update")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("unexpected arguments: %v", flags.Args())
+	}
+	if email == "" {
+		return errors.New("--email is required")
+	}
+	if input == "" {
+		return errors.New("--input is required")
+	}
+	mode := app.ConflictMode(conflict)
+	if err := mode.Validate(); err != nil {
+		return err
+	}
+	caCertPEM, err := readOptional(caCert)
+	if err != nil {
+		return fmt.Errorf("read CA certificate: %w", err)
+	}
+	endpoints, err := bwapi.ResolveEndpoints(bwapi.Region(region), server, apiURL, identityURL, caCertPEM)
+	if err != nil {
+		return err
+	}
+	masterPassword, err := prompt.Secret("Master password", masterPasswordFile, false)
+	if err != nil {
+		return err
+	}
+	defer security.Clear(masterPassword)
+	credentials := kpdb.Credentials{}
+	if !keyFileOnly {
+		credentials.Password, err = prompt.Secret("Database password", databasePasswordFile, true)
+		if err != nil {
+			return err
+		}
+		defer security.Clear(credentials.Password)
+	}
+	credentials.KeyFile, err = readOptional(keyFile)
+	if err != nil {
+		return fmt.Errorf("read key file: %w", err)
+	}
+	defer security.Clear(credentials.KeyFile)
+
+	progressRenderer := progress.NewTerminal(c.stderr, !noProgress)
+	defer progressRenderer.Close()
+	importer := app.NewImporter(
+		bwapi.NewNativeClient(),
+		kpdb.NewNativeReader(),
+		convert.NewKDBXConverter(convert.ImportOptions{AppendSource: appendSource, AllowLossy: allowLossy}),
+	)
+	result, err := importer.Import(ctx, app.ImportRequest{
+		Login: bwapi.LoginRequest{Endpoints: endpoints, Email: email, MasterPassword: masterPassword},
+		TOTP: func(context.Context) (string, error) {
+			return prompt.Code("Authenticator code", totpFile)
+		},
+		Input: input, Credentials: credentials, Conflict: mode, Progress: progressRenderer,
+	})
+	if err != nil {
+		return err
+	}
+	progressRenderer.Close()
+	if err := writeImportWarnings(c.stderr, result.Warnings); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(c.stdout,
+		"Imported %d entries: %d created, %d updated, %d replaced, %d duplicated, %d skipped, %d note fallbacks, %d attachments\n",
+		result.Entries, result.Created, result.Updated, result.Replaced, result.Duplicated,
+		result.Skipped, result.Fallbacks, result.Attachments,
+	)
+	return err
 }
 
 func (c *CLI) export(ctx context.Context, args []string) error {
@@ -161,6 +257,15 @@ func writeWarnings(writer io.Writer, warnings []convert.Warning) error {
 	return nil
 }
 
+func writeImportWarnings(writer io.Writer, warnings []convert.ImportWarning) error {
+	for _, warning := range warnings {
+		if _, err := fmt.Fprintf(writer, "Warning: KDBX entry %q (%s): %s\n", warning.Title, warning.EntryUUID, warning.Message); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func readOptional(path string) ([]byte, error) {
 	if path == "" {
 		return nil, nil
@@ -169,7 +274,7 @@ func readOptional(path string) ([]byte, error) {
 }
 
 func (c *CLI) usage() {
-	_, _ = fmt.Fprintln(c.stderr, "Usage:\n  bwkp export --server URL --email EMAIL --output FILE [options]\n  bwkp export --region us|eu --email EMAIL --output FILE [options]\n  bwkp version")
+	_, _ = fmt.Fprintln(c.stderr, "Usage:\n  bwkp export --server URL --email EMAIL --output FILE [options]\n  bwkp export --region us|eu --email EMAIL --output FILE [options]\n  bwkp import --server URL --email EMAIL --input FILE [options]\n  bwkp import --region us|eu --email EMAIL --input FILE [options]\n  bwkp version")
 }
 
 func ExitCode(err error) int {

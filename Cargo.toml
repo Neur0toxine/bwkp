@@ -13,6 +13,7 @@ anyhow = "1.0.98"
 async-trait = "0.1.88"
 base64 = "0.22.1"
 bitwarden-api-api = { git = "https://github.com/bitwarden/sdk-internal.git", rev = "7fd530e4852639d7391d062760891631ee9c15c1" }
+bitwarden-api-base = { git = "https://github.com/bitwarden/sdk-internal.git", rev = "7fd530e4852639d7391d062760891631ee9c15c1" }
 bitwarden-auth = { git = "https://github.com/bitwarden/sdk-internal.git", rev = "7fd530e4852639d7391d062760891631ee9c15c1" }
 bitwarden-collections = { git = "https://github.com/bitwarden/sdk-internal.git", rev = "7fd530e4852639d7391d062760891631ee9c15c1" }
 bitwarden-core = { git = "https://github.com/bitwarden/sdk-internal.git", rev = "7fd530e4852639d7391d062760891631ee9c15c1", features = ["internal"] }
