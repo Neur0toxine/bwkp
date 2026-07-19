@@ -23,10 +23,11 @@ const termuxPackagesCommit = "c0294462552ec4a03633a11afd72fc903a550182"
 var Default = Build
 
 func Build() error {
+	target := buildTarget()
 	if err := os.MkdirAll("dist", 0o755); err != nil {
 		return err
 	}
-	buildEnvironment, err := staticBuildEnvironment()
+	buildEnvironment, err := staticBuildEnvironment(target)
 	if err != nil {
 		return err
 	}
@@ -36,19 +37,19 @@ func Build() error {
 	if err := stageRustLibrary(); err != nil {
 		return err
 	}
-	if err := buildKeePassXC(buildEnvironment); err != nil {
+	if err := buildKeePassXC(buildEnvironment, target); err != nil {
 		return err
 	}
 	version := envOr("VERSION", "dev")
 	commit := envOr("COMMIT", "unknown")
 	date := envOr("BUILD_DATE", "unknown")
 	output := "dist/bwkp"
-	if runtime.GOOS == "windows" {
+	if target.os == "windows" {
 		output += ".exe"
 	}
 	ldflags := fmt.Sprintf("-s -w -X github.com/Neur0toxine/bwkp/internal/buildinfo.Version=%s -X github.com/Neur0toxine/bwkp/internal/buildinfo.Commit=%s -X github.com/Neur0toxine/bwkp/internal/buildinfo.Date=%s", version, commit, date)
 	ldflags += " -buildid="
-	switch runtime.GOOS {
+	switch target.os {
 	case "linux":
 		ldflags += " -linkmode=external -extldflags \"-static -static-libgcc -static-libstdc++ -Wl,--gc-sections,--build-id=none\""
 	case "windows":
@@ -67,16 +68,35 @@ func Build() error {
 	return packBinary(output)
 }
 
-func staticBuildEnvironment() (map[string]string, error) {
+type targetPlatform struct {
+	os   string
+	arch string
+}
+
+func buildTarget() targetPlatform {
+	return targetPlatform{
+		os:   envOr("GOOS", runtime.GOOS),
+		arch: envOr("GOARCH", runtime.GOARCH),
+	}
+}
+
+func staticBuildEnvironment(target targetPlatform) (map[string]string, error) {
 	environment := make(map[string]string)
-	prefix, err := filepath.Abs(envOr("BWKP_STATIC_PREFIX", filepath.Join("target", "static")))
+	prefix, err := filepath.Abs(envOr("BWKP_STATIC_PREFIX", filepath.Join("target", "static-"+target.os+"-"+target.arch)))
 	if err != nil {
 		return nil, err
 	}
 	prefix = filepath.ToSlash(prefix)
 	environment["BWKP_STATIC_PREFIX"] = prefix
+	sourceRoot, err := filepath.Abs(filepath.Join("target", "static-sources", target.os+"-"+target.arch))
+	if err != nil {
+		return nil, err
+	}
+	environment["BWKP_STATIC_SOURCES"] = filepath.ToSlash(sourceRoot)
+	environment["GOOS"] = target.os
+	environment["GOARCH"] = target.arch
 	prefixes := []string{prefix}
-	if mingwPrefix := os.Getenv("MINGW_PREFIX"); runtime.GOOS == "windows" && mingwPrefix != "" {
+	if mingwPrefix := os.Getenv("MINGW_PREFIX"); target.os == "windows" && mingwPrefix != "" {
 		windowsPrefix, err := sh.Output("cygpath", "-m", mingwPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("resolve MSYS2 prefix: %w", err)
@@ -93,7 +113,7 @@ func staticBuildEnvironment() (map[string]string, error) {
 		)
 		linkerPaths = append(linkerPaths, "-L"+dependencyPrefix+"/lib")
 	}
-	switch runtime.GOOS {
+	switch target.os {
 	case "linux":
 		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz", "-lstdc++", "-lm", "-lpthread", "-ldl", "-lrt")
 	case "darwin":
@@ -103,7 +123,7 @@ func staticBuildEnvironment() (map[string]string, error) {
 		)
 	case "windows":
 		linkerPaths = append(linkerPaths, "-lqtpcre2", "-lz")
-		if runtime.GOARCH == "arm64" {
+		if target.arch == "arm64" {
 			linkerPaths = append(linkerPaths, "-lc++")
 		} else {
 			linkerPaths = append(linkerPaths, "-lstdc++")
@@ -180,7 +200,7 @@ func dockerBuildxAvailable() bool {
 	return exec.Command("docker", "buildx", "version").Run() == nil
 }
 
-func buildKeePassXC(environment map[string]string) error {
+func buildKeePassXC(environment map[string]string, target targetPlatform) error {
 	arguments := []string{"-S", "native/kpdb", "-B", "target/keepassxc", "-DCMAKE_BUILD_TYPE=Release"}
 	if prefixes := environment["BWKP_STATIC_PREFIXES"]; prefixes != "" {
 		arguments = append(arguments,
@@ -188,7 +208,7 @@ func buildKeePassXC(environment map[string]string) error {
 			"-DCMAKE_FIND_LIBRARY_SUFFIXES=.a",
 		)
 	}
-	if runtime.GOOS == "windows" {
+	if target.os == "windows" {
 		if windeployqt, err := exec.LookPath("windeployqt-qt5"); err == nil {
 			arguments = append(arguments, "-DWINDEPLOYQT_EXE="+filepath.ToSlash(windeployqt))
 		}

@@ -8,7 +8,7 @@ if [[ -n "${MSYSTEM:-}" ]]; then
 fi
 prefix=${BWKP_STATIC_PREFIX:-"$root/target/static"}
 downloads="$root/target/downloads"
-sources="$root/target/static-sources"
+sources=${BWKP_STATIC_SOURCES:-"$root/target/static-sources"}
 jobs=${CMAKE_BUILD_PARALLEL_LEVEL:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)}
 
 qt_version=5.15.18
