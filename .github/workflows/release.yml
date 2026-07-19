@@ -18,6 +18,8 @@ jobs:
   prepare:
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v7
+        with: {ref: "${{ env.RELEASE_TAG }}"}
       - name: Create a draft release when the tag was pushed manually
         env:
           GH_TOKEN: ${{ github.token }}
