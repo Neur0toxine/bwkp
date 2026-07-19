@@ -6,6 +6,8 @@
       "release-as": "0.1.1",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
+      "draft": true,
+      "force-tag-creation": true,
       "extra-files": [
         {
           "type": "generic",

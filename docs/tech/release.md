@@ -1,9 +1,10 @@
 # Release lifecycle
 
 `bwkp` uses release-please to turn Conventional Commits on `master` into a
-versioned release pull request. Merging that pull request creates the Git tag
-and GitHub release; publishing the release starts the separate artifact build.
-Maintainers normally do not edit the version, changelog, or tag by hand.
+versioned release pull request. Merging that pull request creates a Git tag and
+a draft GitHub release. The release pipeline builds from that tag, attaches all
+artifacts, then publishes the completed release. Maintainers normally do not
+edit the version, changelog, or tag by hand.
 
 ## Versioning policy
 
@@ -85,17 +86,18 @@ The normal lifecycle is:
 Conventional commits merged to master
         -> release-please updates a release PR
         -> maintainer reviews and merges the release PR
-        -> release-please creates tag vX.Y.Z and publishes a GitHub release
-        -> the published-release workflow builds and uploads artifacts
-        -> the checksum job publishes SHA256SUMS
+        -> release-please creates tag vX.Y.Z and a draft GitHub release
+        -> the tag build uploads every artifact and SHA256SUMS
+        -> the pipeline publishes the completed GitHub release
 ```
 
 Merging ordinary feature or fix pull requests does not immediately produce an
 artifact release; it updates the pending release PR. Merging the release PR is
 the maintainer's release trigger. The Actions UI can re-run a failed artifact
-job for the same published release. Creating a tag or GitHub release manually
-is reserved for recovery because it bypasses the version and changelog state
-managed by release-please.
+job for the same draft release. A manually pushed `v*` tag uses the same build
+workflow and creates a draft release before building; reserve that path for
+recovery because it bypasses the version and changelog state managed by
+release-please.
 
 The workflows require repository permission to create pull requests, tags,
 releases, attestations, and release assets. If release-please stops updating its
@@ -104,7 +106,7 @@ state.
 
 ## Release artifacts
 
-The published-release workflow builds these archives:
+The tag-release workflow builds these archives:
 
 | Target | Archive suffix | Runner/build path |
 | --- | --- | --- |
