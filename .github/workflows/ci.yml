@@ -47,6 +47,53 @@ jobs:
       - run: go tool mage ${{ matrix.mage-target }}
       - run: file dist/bwkp-android-${{ matrix.target }}
 
+  linux:
+    name: linux (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: i686
+            goarch: "386"
+            rust-target: i686-unknown-linux-gnu
+            cflags: -m32
+            packages: g++-multilib
+          - runner: ubuntu-24.04
+            arch: amd64
+            goarch: amd64
+            rust-target: x86_64-unknown-linux-gnu
+            cflags: ""
+            packages: g++
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            goarch: arm64
+            rust-target: aarch64-unknown-linux-gnu
+            cflags: ""
+            packages: g++
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: {go-version-file: go.mod, cache: true}
+      - uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1, targets: "${{ matrix.rust-target }}"}
+      - run: |
+          sudo apt-get update
+          sudo apt-get install --yes binutils cmake curl file make pkg-config python3 ${{ matrix.packages }}
+      - env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CARGO_BUILD_TARGET: ${{ matrix.rust-target }}
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cflags }}
+          LDFLAGS: ${{ matrix.cflags }}
+          BWKP_UPX: "0"
+        run: |
+          go tool mage build
+          file dist/bwkp
+          dist/bwkp version
+
   macos:
     strategy:
       fail-fast: false

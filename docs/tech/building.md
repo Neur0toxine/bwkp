@@ -44,6 +44,11 @@ sudo apt-get update
 sudo apt-get install binutils cmake curl file g++ git make pkg-config python3
 ```
 
+CI builds Linux binaries for i686, amd64, and aarch64. The amd64 and aarch64
+entries use native GitHub-hosted runners. The i686 entry runs on amd64 with
+Ubuntu's multilib compiler, `GOARCH=386`, the `i686-unknown-linux-gnu` Rust
+target, and `-m32` C/C++ flags so every static dependency has the target ABI.
+
 On macOS with Homebrew:
 
 ```text

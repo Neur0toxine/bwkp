@@ -120,6 +120,8 @@ build_botan() {
       CLANGARM64) target=(--os=mingw --cpu=arm64 --cc=clang) ;;
       *) echo "unsupported Botan MSYS2 environment: $MSYSTEM" >&2; return 1 ;;
     esac
+  elif [[ "${GOOS:-}" == linux && "${GOARCH:-}" == 386 ]]; then
+    target=(--os=linux --cpu=x86_32 --cc=gcc)
   fi
   python3 configure.py --prefix="$prefix" --build-targets=static \
     --without-documentation --minimized-build \
@@ -134,7 +136,9 @@ build_qt() {
   if [[ -n "${MINGW_PREFIX:-}" && -f "$MINGW_PREFIX/qt5-static/lib/libQt5Core.a" ]]; then
     return
   fi
-  [[ -f "$prefix/lib/libQt5Core.a" && -f "$prefix/lib/libQt5Concurrent.a" ]] && return
+  if [[ -f "$prefix/lib/libQt5Core.a" && -f "$prefix/lib/libQt5Concurrent.a" ]]; then
+    [[ -z "${MSYSTEM:-}" || -f "$prefix/bin/qmake.exe" ]] && return
+  fi
   fetch "qtbase-$qt_version.tar.xz" \
     "https://download.qt.io/archive/qt/5.15/$qt_version/submodules/qtbase-everywhere-opensource-src-$qt_version.tar.xz" \
     7b632550ea1048fc10c741e46e2e3b093e5ca94dfa6209e9e0848800e247023b
@@ -175,6 +179,8 @@ build_qt() {
       printf '\nDEFINES += Q_OS_ANDROID_EMBEDDED\n' >> "$source/mkspecs/termux-cross/qmake.conf"
     fi
     platform=(-xplatform termux-cross -hostprefix "$source/host")
+  elif [[ "${GOOS:-}" == linux && "${GOARCH:-}" == 386 ]]; then
+    platform=(-platform linux-g++-32)
   fi
   "$source/configure" -prefix "$prefix" ${platform[@]+"${platform[@]}"} -opensource -confirm-license -release -static \
     -nomake examples -nomake tests -no-gui -no-widgets -no-dbus -no-glib \
@@ -187,6 +193,7 @@ build_qt() {
     # The top-level 32-bit MinGW install expects an unused qmake bootstrap at
     # a path where Qt's own build does not place it.
     make -C src install
+    install -m 0755 "$source/build/bin/qmake.exe" "$prefix/bin/qmake.exe"
   else
     make install
   fi
