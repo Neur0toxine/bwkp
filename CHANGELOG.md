@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2](https://github.com/Neur0toxine/bwkp/compare/v0.1.1...v0.1.2) (2026-07-19)
+
+
+### Bug Fixes
+
+* add commonly used ~/.local/bin to install.sh ([20fb3be](https://github.com/Neur0toxine/bwkp/commit/20fb3be76d8d29a01cd236a967b3b9ec0791d306))
+* support for new device flow ([d0590d4](https://github.com/Neur0toxine/bwkp/commit/d0590d49a359c4a409b01f1f714dde1dbcccece3))
+* Termux compat with install.sh ([638c308](https://github.com/Neur0toxine/bwkp/commit/638c308a95c0a0878a8fe7007fe86c2b15b7b0a7))
+
 ## [0.1.1](https://github.com/Neur0toxine/bwkp/compare/v0.1.0...v0.1.1) (2026-07-19)
 
 

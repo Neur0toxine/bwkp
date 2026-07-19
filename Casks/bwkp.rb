@@ -1,7 +1,7 @@
 cask "bwkp" do
   arch arm: "arm64", intel: "amd64"
 
-  version "0.1.1" # x-release-please-version
+  version "0.1.2" # x-release-please-version
   sha256 arm:          "e1e4df70fa8bc00f037df711e7f8e4c6a1d0feb9484cb9f884d23f530c67eea5", # bwkp-release-arm64
          arm64_linux:  "e1e4df70fa8bc00f037df711e7f8e4c6a1d0feb9484cb9f884d23f530c67eea5",
          x86_64:       "51a2e9a0fc3a41f184ed5b4f3fb8238b4353fed3960136722e89b15e3a87641b", # bwkp-release-amd64
