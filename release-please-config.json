@@ -3,6 +3,7 @@
     ".": {
       "release-type": "simple",
       "package-name": "bwkp",
+      "release-as": "0.1.1",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
       "extra-files": [
