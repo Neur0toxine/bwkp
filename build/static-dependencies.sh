@@ -137,7 +137,11 @@ build_qt() {
     return
   fi
   if [[ -f "$prefix/lib/libQt5Core.a" && -f "$prefix/lib/libQt5Concurrent.a" ]]; then
-    [[ -z "${MSYSTEM:-}" || -f "$prefix/bin/qmake.exe" ]] && return
+    if [[ -z "${MSYSTEM:-}" ]] || {
+      [[ -f "$prefix/bin/qmake.exe" ]] && [[ -d "$prefix/mkspecs/win32-g++" ]]
+    }; then
+      return
+    fi
   fi
   fetch "qtbase-$qt_version.tar.xz" \
     "https://download.qt.io/archive/qt/5.15/$qt_version/submodules/qtbase-everywhere-opensource-src-$qt_version.tar.xz" \
@@ -190,10 +194,14 @@ build_qt() {
   make -j"$jobs" sub-src
   if [[ -n "${MSYSTEM:-}" ]]; then
     # KeePassXC consumes Qt through CMake and only needs the src artifacts.
-    # The top-level 32-bit MinGW install expects an unused qmake bootstrap at
-    # a path where Qt's own build does not place it.
+    # The top-level 32-bit MinGW install expects qmake and mkspec metadata at
+    # paths where Qt's own build does not place them.
     make -C src install
     install -m 0755 "$source/build/bin/qmake.exe" "$prefix/bin/qmake.exe"
+    # Qt's CMake package validates the configured mkspec directory and its
+    # shared includes before exposing Qt5::Core.
+    mkdir -p "$prefix/mkspecs"
+    cp -R "$source/mkspecs/." "$prefix/mkspecs/"
   else
     make install
   fi
