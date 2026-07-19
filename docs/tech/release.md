@@ -108,6 +108,7 @@ The published-release workflow builds these archives:
 
 | Target | Archive suffix | Runner/build path |
 | --- | --- | --- |
+| Linux x86 | `linux-i686` | Ubuntu x86-64 with multilib cross-build |
 | Linux x86-64 | `linux-amd64` | native build on Ubuntu x86-64 |
 | Linux ARM64 | `linux-arm64` | native build on Ubuntu ARM64 |
 | macOS Intel | `macos-amd64` | native build on macOS Intel |
@@ -118,8 +119,9 @@ The published-release workflow builds these archives:
 | Termux Android ARM64 | `android-arm64` | pinned Termux cross-builder |
 | Termux Android ARMv7 | `android-armv7` | pinned Termux cross-builder |
 
-These cover the popular desktop/server 64-bit architectures and both current
-64-bit ARM and legacy 32-bit ARM Termux devices. Adding a supported platform is
+These cover current Linux desktop/server architectures, popular 64-bit desktop
+platforms, and both current 64-bit ARM and legacy 32-bit ARM Termux devices.
+Adding a supported platform is
 not complete until its Mage target, CI build, release matrix entry, system-ABI
 policy, and a real artifact-format check all exist.
 

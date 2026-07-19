@@ -12,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - {runner: ubuntu-24.04, target: linux-i686, binary: bwkp, mage-target: build, dependencies: linux}
           - {runner: ubuntu-24.04, target: linux-amd64, binary: bwkp, mage-target: build, dependencies: linux}
           - {runner: ubuntu-24.04-arm, target: linux-arm64, binary: bwkp, mage-target: build, dependencies: linux}
           - {runner: macos-15-intel, target: macos-amd64, binary: bwkp, mage-target: build, dependencies: macos}
@@ -25,10 +26,15 @@ jobs:
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
         with: {toolchain: 1.93.1}
+      - if: matrix.target == 'linux-i686'
+        uses: dtolnay/rust-toolchain@stable
+        with: {toolchain: 1.93.1, targets: i686-unknown-linux-gnu}
       - if: matrix.dependencies == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes binutils cmake curl file g++ make pkg-config python3
+      - if: matrix.target == 'linux-i686'
+        run: sudo apt-get install --yes g++-multilib
       - if: matrix.dependencies == 'macos'
         run: |
           brew install cmake pkgconf
@@ -38,6 +44,10 @@ jobs:
           echo "$RUNNER_TEMP/upx" >> "$GITHUB_PATH"
       - shell: bash
         run: |
+          if [[ "${{ matrix.target }}" == linux-i686 ]]; then
+            export GOOS=linux GOARCH=386 CARGO_BUILD_TARGET=i686-unknown-linux-gnu
+            export CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32
+          fi
           VERSION="${GITHUB_REF_NAME#v}" COMMIT="$GITHUB_SHA" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage ${{ matrix.mage-target }}
           mkdir package
           cp "dist/${{ matrix.binary }}" package/bwkp
