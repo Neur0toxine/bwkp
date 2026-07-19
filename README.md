@@ -1,15 +1,16 @@
 # bwkp
 
-`bwkp` transfers records in both directions between Bitwarden/Vaultwarden and
-modern KeePassXC databases. It performs a fresh login for each export or
-import, does not use the Bitwarden CLI, does not keep a session, and never
-writes an intermediate plaintext export.
+`bwkp` moves vault data between Bitwarden or Vaultwarden and KeePassXC. Export
+your Bitwarden vault to a KeePassXC database, or import a KeePassXC database
+into Bitwarden, without creating a plaintext export file.
 
-The native compatibility boundary is deliberately narrow:
+It is cross-platform and uses the upstream Bitwarden and KeePassXC components
+directly to maximize compatibility and avoid problems that third-party
+libraries can introduce:
 
 - Bitwarden access and decryption use the official Rust SDK 3.0.0, pinned to
-  commit `7fd530e4852639d7391d062760891631ee9c15c1`. Requests use the official
-  Bitwarden CLI 2026.6.0 client identity and platform-specific user agent.
+  its commit. Requests use the official Bitwarden CLI 2026.6.0 client identity
+  and platform-specific user agent.
 - KDBX reading, writing, and verification use the statically linked KeePassXC 2.7.12
   C++ core. There is no independent KDBX implementation.
 
@@ -17,11 +18,9 @@ Run `bwkp version` to see both upstream versions compiled into a binary.
 
 ## Installation
 
-Release binaries embed the reduced QtCore/QtConcurrent, Botan, Argon2, zlib,
-and KeePassXC closure. Linux artifacts are fully static;
-Windows, macOS, and Android artifacts depend only on libraries supplied by the
-operating system. No Qt, Botan, KeePassXC, or other third-party runtime package
-is required.
+`bwkp` supports multiple platforms and installation methods. Release binaries
+are deliberately fully static where possible, and otherwise near-static, so
+they do not require third-party runtime dependencies.
 
 <table>
   <thead>
@@ -37,8 +36,8 @@ is required.
         <strong>1. Release archive (recommended)</strong><br>
         Download <code>windows-386</code> for 32-bit x86, <code>windows-amd64</code> for x86-64, or
         <code>windows-arm64</code> for ARM64 from
-        <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>. Verify it with
-        <code>SHA256SUMS</code>, extract it, and place <code>bwkp.exe</code> on <code>PATH</code>.
+        <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>, extract it, and
+        place <code>bwkp.exe</code> on <code>PATH</code>.
       </td>
     </tr>
     <tr>
@@ -67,8 +66,8 @@ is required.
       <td>
         <strong>3. Release archive</strong><br>
         Download <code>macos-amd64</code> for Intel or <code>macos-arm64</code> for Apple silicon from
-        <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>, verify it with
-        <code>SHA256SUMS</code>, extract it, and place <code>bwkp</code> on <code>PATH</code>.
+        <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>, extract it, and
+        place <code>bwkp</code> on <code>PATH</code>.
       </td>
     </tr>
     <tr>
@@ -89,8 +88,8 @@ is required.
       <td>
         <strong>3. Release archive</strong><br>
         Download the matching archive from
-        <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>, verify it with
-        <code>SHA256SUMS</code>, extract it, and place <code>bwkp</code> on <code>PATH</code>.
+        <a href="https://github.com/Neur0toxine/bwkp/releases">GitHub Releases</a>, extract it, and
+        place <code>bwkp</code> on <code>PATH</code>.
       </td>
     </tr>
     <tr>
@@ -109,7 +108,7 @@ is required.
         <strong>Linux virtual machine (experimental)</strong><br>
         There is no native iOS binary. Advanced users can try a supported x86-64 or ARM64 Linux guest
         in <a href="https://mac.getutm.app/">UTM</a>. iOS is untested; iSH commonly emulates an
-        unsupported architecture and its Alpine environment is incompatible with the published glibc binaries.
+        unsupported architecture.
       </td>
     </tr>
     <tr>
@@ -122,18 +121,18 @@ is required.
   </tbody>
 </table>
 
-The installer defaults to the latest release, verifies the selected archive
-against the release `SHA256SUMS`, and installs to `./bin`. Pass `-b` to choose
-another directory and optionally specify an exact release, for example:
+The installer uses the latest release by default and installs it to `./bin`:
+
+```text
+curl -sSfL https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh | bash
+```
+
+Pass `-b` to choose another directory. You can also select an exact release:
 
 ```text
 curl -sSfL https://raw.githubusercontent.com/Neur0toxine/bwkp/master/install.sh |
   bash -s -- -b "$HOME/.local/bin" v1.2.3
 ```
-
-Release executables are self-contained apart from operating-system libraries
-on Windows, macOS, and Android. The project does not publish the tool-specific plugin required by
-[asdf](https://asdf-vm.com/), so mise is the direct, plugin-free option.
 
 ## Usage
 
