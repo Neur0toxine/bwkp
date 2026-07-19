@@ -7,7 +7,7 @@ Install bwkp from GitHub Releases.
 
 Usage: $0 [-b BINDIR] [VERSION]
 
-  -b BINDIR  Install into BINDIR (default: \$HOME/.local/bin if it exists, otherwise ./bin; \$BINDIR overrides).
+  -b BINDIR  Install into BINDIR (default: \$PREFIX/bin in Termux, otherwise \$HOME/.local/bin if it exists, or ./bin; \$BINDIR overrides).
   VERSION     Release version such as v1.2.3 or 1.2.3 (default: latest).
 EOF
 	exit 2
@@ -15,6 +15,8 @@ EOF
 
 if [ -n "${BINDIR:-}" ]; then
 	bindir=$BINDIR
+elif case "${PREFIX:-}" in */com.termux/*) true ;; *) false ;; esac; then
+	bindir=$PREFIX/bin
 elif [ -n "${HOME:-}" ] && [ -d "$HOME/.local/bin" ]; then
 	bindir=$HOME/.local/bin
 else
