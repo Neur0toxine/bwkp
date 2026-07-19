@@ -9,7 +9,7 @@ package native
 #cgo android LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lbotan-3 -largon2 -lz -lc++_static -lc++abi -lunwind -latomic -llog -ldl -lm
 #cgo darwin pkg-config: Qt5Core Qt5Concurrent
 #cgo darwin LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lbotan-3 -largon2 -lz -lc++ -framework Security -framework CoreFoundation -framework Foundation -liconv
-#cgo windows LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lbotan-3 -largon2 -lz -lbcrypt -lws2_32 -luserenv -lntdll
+#cgo windows LDFLAGS: ${SRCDIR}/../../target/release/libbwkp_native.a -L${SRCDIR}/../../target/keepassxc/lib -lbwkp_kpdb -lkeepassx_core -lQt5Core -lQt5Concurrent -lbotan-3 -largon2 -lz -lbcrypt -lws2_32 -luserenv -lntdll
 #cgo windows,386 LDFLAGS: -lstdc++
 #cgo windows,amd64 LDFLAGS: -lstdc++
 #cgo windows,arm64 LDFLAGS: -lc++
