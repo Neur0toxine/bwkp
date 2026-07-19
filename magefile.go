@@ -201,7 +201,8 @@ func dockerBuildxAvailable() bool {
 }
 
 func buildKeePassXC(environment map[string]string, target targetPlatform) error {
-	arguments := []string{"-S", "native/kpdb", "-B", "target/keepassxc", "-DCMAKE_BUILD_TYPE=Release"}
+	buildDirectory := keepassXCBuildDirectory(target)
+	arguments := []string{"-S", "native/kpdb", "-B", buildDirectory, "-DCMAKE_BUILD_TYPE=Release"}
 	if prefixes := environment["BWKP_STATIC_PREFIXES"]; prefixes != "" {
 		arguments = append(arguments,
 			"-DCMAKE_PREFIX_PATH="+prefixes,
@@ -216,11 +217,34 @@ func buildKeePassXC(environment map[string]string, target targetPlatform) error 
 	if err := sh.RunWithV(environment, "cmake", arguments...); err != nil {
 		return err
 	}
-	arguments = []string{"--build", "target/keepassxc", "--config", "Release", "--target", "bwkp_kpdb", "--parallel"}
+	arguments = []string{"--build", buildDirectory, "--config", "Release", "--target", "bwkp_kpdb", "--parallel"}
 	if parallel := os.Getenv("CMAKE_BUILD_PARALLEL_LEVEL"); parallel != "" {
 		arguments = append(arguments, parallel)
 	}
-	return sh.RunWithV(environment, "cmake", arguments...)
+	if err := sh.RunWithV(environment, "cmake", arguments...); err != nil {
+		return err
+	}
+	return stageKeePassXCLibraries(buildDirectory, target)
+}
+
+func keepassXCBuildDirectory(target targetPlatform) string {
+	return filepath.Join("target", "keepassxc-"+target.os+"-"+target.arch)
+}
+
+// stageKeePassXCLibraries preserves the stable library path embedded in cgo.
+// The source directory remains target-specific so local and CI builds cannot
+// reuse archives compiled for another ABI.
+func stageKeePassXCLibraries(buildDirectory string, target targetPlatform) error {
+	libraries := []string{"libbwkp_kpdb.a", "libkeepassx_core.a"}
+	if target.os == "linux" {
+		libraries = append(libraries, "libbwkp_botan.a")
+	}
+	for _, name := range libraries {
+		if err := copyFile(filepath.Join(buildDirectory, "lib", name), filepath.Join("target", "keepassxc", "lib", name), 0o644); err != nil {
+			return fmt.Errorf("stage KeePassXC library %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 type Android mg.Namespace
