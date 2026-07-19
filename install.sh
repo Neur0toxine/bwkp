@@ -7,13 +7,19 @@ Install bwkp from GitHub Releases.
 
 Usage: $0 [-b BINDIR] [VERSION]
 
-  -b BINDIR  Install into BINDIR (default: ./bin or \$BINDIR).
+  -b BINDIR  Install into BINDIR (default: \$HOME/.local/bin if it exists, otherwise ./bin; \$BINDIR overrides).
   VERSION     Release version such as v1.2.3 or 1.2.3 (default: latest).
 EOF
 	exit 2
 }
 
-bindir=${BINDIR:-./bin}
+if [ -n "${BINDIR:-}" ]; then
+	bindir=$BINDIR
+elif [ -n "${HOME:-}" ] && [ -d "$HOME/.local/bin" ]; then
+	bindir=$HOME/.local/bin
+else
+	bindir=./bin
+fi
 while getopts "b:h" option; do
 	case "$option" in
 		b) bindir=$OPTARG ;;
