@@ -2,6 +2,9 @@
 
 - A TOTP is intentionally requested on every export or import when authenticator 2FA is
   configured. Codes are never remembered.
+- On an unrecognized Bitwarden device, `bwkp` prints the identity-service warning and
+  asks for the verification code sent to the account's login email. The code is used
+  only for the immediate login retry and is not persisted.
 - Export's `target already exists` error is a safety check; use `--force` only
   when replacement is intended. Import never replaces the input KDBX file.
 - A self-signed server currently requires trust through the operating system's

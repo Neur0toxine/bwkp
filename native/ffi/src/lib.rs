@@ -64,8 +64,20 @@ pub unsafe extern "C" fn bwkp_login(
         Ok(Ok(bwkp_bw::LoginOutcome::Authenticated(session))) => Box::into_raw(session) as usize,
         Ok(Ok(bwkp_bw::LoginOutcome::TwoFactor(providers))) => {
             if !output.is_null() {
-                let value = serde_json::to_vec(&serde_json::json!({"providers": providers}))
-                    .unwrap_or_default();
+                let value = serde_json::to_vec(
+                    &serde_json::json!({"type": "two-factor", "providers": providers}),
+                )
+                .unwrap_or_default();
+                unsafe { *output = Buffer::from_vec(value) };
+            }
+            0
+        }
+        Ok(Ok(bwkp_bw::LoginOutcome::DeviceVerification(message))) => {
+            if !output.is_null() {
+                let value = serde_json::to_vec(
+                    &serde_json::json!({"type": "device-verification", "message": message}),
+                )
+                .unwrap_or_default();
                 unsafe { *output = Buffer::from_vec(value) };
             }
             0

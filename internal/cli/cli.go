@@ -131,7 +131,8 @@ func (c *CLI) importDatabase(ctx context.Context, args []string) error {
 		TOTP: func(context.Context) (string, error) {
 			return prompt.Code("Authenticator code", totpFile)
 		},
-		Input: input, Credentials: credentials, Conflict: mode, Progress: progressRenderer,
+		DeviceVerification: c.deviceVerificationCode,
+		Input:              input, Credentials: credentials, Conflict: mode, Progress: progressRenderer,
 	})
 	if err != nil {
 		return err
@@ -240,9 +241,10 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 		AllowLossy:   allowLossy,
 	}), kpdb.NewNativeWriter())
 	report, err := exporter.Export(ctx, app.Request{
-		Login:  bwapi.LoginRequest{Endpoints: endpoints, Email: email, MasterPassword: masterPassword},
-		TOTP:   func(context.Context) (string, error) { return prompt.Code("Authenticator code", totpFile) },
-		Output: output, Force: force, Credentials: credentials, Options: options, Progress: progressRenderer,
+		Login:              bwapi.LoginRequest{Endpoints: endpoints, Email: email, MasterPassword: masterPassword},
+		TOTP:               func(context.Context) (string, error) { return prompt.Code("Authenticator code", totpFile) },
+		DeviceVerification: c.deviceVerificationCode,
+		Output:             output, Force: force, Credentials: credentials, Options: options, Progress: progressRenderer,
 	})
 	if err != nil {
 		return err
@@ -253,6 +255,13 @@ func (c *CLI) export(ctx context.Context, args []string) error {
 	}
 	_, err = fmt.Fprintf(c.stdout, "Exported %d items as %d entries with %d attachments to %s\n", report.Items, report.Entries, report.Attachments, output)
 	return err
+}
+
+func (c *CLI) deviceVerificationCode(_ context.Context, message string) (string, error) {
+	if _, err := fmt.Fprintf(c.stderr, "Warning: %s\n", message); err != nil {
+		return "", err
+	}
+	return prompt.Code("Device verification code", "")
 }
 
 func writeWarnings(writer io.Writer, warnings []convert.Warning) error {

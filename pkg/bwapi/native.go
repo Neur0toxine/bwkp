@@ -31,18 +31,31 @@ func (c *NativeClient) Login(ctx context.Context, request LoginRequest) (Session
 		return nil, err
 	}
 	if len(result.Challenge) > 0 {
-		var challenge struct {
-			Providers []string `json:"providers"`
-		}
-		if err := json.Unmarshal(result.Challenge, &challenge); err != nil {
-			return nil, fmt.Errorf("decode two-factor challenge: %w", err)
-		}
-		return nil, &TwoFactorRequiredError{Providers: challenge.Providers}
+		return nil, decodeLoginChallenge(result.Challenge)
 	}
 	if result.Handle == 0 {
 		return nil, errors.New("native login returned no session")
 	}
 	return &nativeSession{handle: result.Handle}, nil
+}
+
+func decodeLoginChallenge(payload []byte) error {
+	var challenge struct {
+		Type      string   `json:"type"`
+		Message   string   `json:"message"`
+		Providers []string `json:"providers"`
+	}
+	if err := json.Unmarshal(payload, &challenge); err != nil {
+		return fmt.Errorf("decode login challenge: %w", err)
+	}
+	switch challenge.Type {
+	case "two-factor":
+		return &TwoFactorRequiredError{Providers: challenge.Providers}
+	case "device-verification":
+		return &DeviceVerificationRequiredError{Message: challenge.Message}
+	default:
+		return fmt.Errorf("unsupported login challenge %q", challenge.Type)
+	}
 }
 
 type nativeSession struct {

@@ -8,16 +8,24 @@ use anyhow::{Context, Result, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bitwarden_api_api::models::{
     AttachmentRequestModel, CipherRequestModel, CipherResponseModel, FileUploadType,
+    UserDecryptionResponseModel,
 };
 use bitwarden_api_base::AuthRequired;
 use bitwarden_collections::collection::Collection;
 use bitwarden_core::{
     Client, ClientSettings, DeviceType, OrganizationId, UserId,
-    auth::login::{PasswordLoginRequest, TwoFactorProvider, TwoFactorRequest},
+    auth::{
+        JwtToken, TokenHandler,
+        login::{LoginError, PasswordLoginRequest, TwoFactorProvider, TwoFactorRequest},
+    },
     client::FromClientPart,
-    key_management::crypto::InitOrgCryptoRequest,
+    key_management::{
+        MasterPasswordAuthenticationData, UserDecryptionData,
+        account_cryptographic_state::WrappedAccountCryptographicState,
+        crypto::{InitOrgCryptoRequest, InitUserCryptoMethod, InitUserCryptoRequest},
+    },
 };
-use bitwarden_crypto::{IdentifyKey, UnsignedSharedKey};
+use bitwarden_crypto::{EncString, IdentifyKey, UnsignedSharedKey};
 use bitwarden_sync::{SyncClientExt, SyncRequest};
 use bitwarden_vault::{
     AttachmentView, BankAccountView, CardView, Cipher, CipherId, CipherRepromptType, CipherType,
@@ -145,6 +153,7 @@ struct Source {
 pub enum LoginOutcome {
     Authenticated(Box<Session>),
     TwoFactor(Vec<String>),
+    DeviceVerification(String),
 }
 
 #[derive(Deserialize, Zeroize)]
@@ -157,6 +166,35 @@ struct LoginInput {
     master_password: Vec<u8>,
     #[serde(default)]
     totp: String,
+    #[serde(default)]
+    device_verification_code: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NewDeviceVerificationRequest<'a> {
+    scope: &'static str,
+    #[serde(rename = "client_id")]
+    client_id: &'static str,
+    device_type: u8,
+    device_identifier: &'a str,
+    device_name: &'static str,
+    #[serde(rename = "grant_type")]
+    grant_type: &'static str,
+    username: &'a str,
+    password: &'a str,
+    new_device_otp: &'a str,
+}
+
+#[derive(Deserialize)]
+struct IdentitySuccessResponse {
+    access_token: String,
+    expires_in: u64,
+    refresh_token: Option<String>,
+    #[serde(rename = "PrivateKey", alias = "privateKey")]
+    private_key: String,
+    #[serde(rename = "UserDecryptionOptions", alias = "userDecryptionOptions")]
+    user_decryption_options: UserDecryptionResponseModel,
 }
 
 #[derive(Clone, Deserialize)]
@@ -207,29 +245,62 @@ pub fn login(request: &[u8]) -> Result<LoginOutcome> {
         api_url: input.endpoints.api_url.clone(),
         user_agent: bitwarden_cli_user_agent(),
         device_type: platform_device_type(),
-        device_identifier: Some(device_identifier),
+        device_identifier: Some(device_identifier.clone()),
         bitwarden_client_version: Some(BITWARDEN_CLI_VERSION.to_owned()),
         bitwarden_package_type: None,
     };
+    let token_handler = bitwarden_auth::token_management::PasswordManagerTokenHandler::default();
     let client = Client::builder()
         .with_settings(settings)
-        .with_token_handler(Arc::new(
-            bitwarden_auth::token_management::PasswordManagerTokenHandler::default(),
-        ))
+        .with_token_handler(Arc::new(token_handler.clone()))
         .with_middleware(vec![Arc::new(SyncCompatibilityMiddleware)])
         .build();
     let runtime = Runtime::new().context("create Bitwarden async runtime")?;
-    let response = runtime
-        .block_on(client.auth().login_password(&PasswordLoginRequest {
-            email: normalized_email.clone(),
-            password,
-            two_factor: (!input.totp.is_empty()).then(|| TwoFactorRequest {
-                token: input.totp.clone(),
-                provider: TwoFactorProvider::Authenticator,
-                remember: false,
-            }),
-        }))
-        .context("password login")?;
+    if !input.device_verification_code.is_empty() {
+        runtime
+            .block_on(login_new_device(
+                &client,
+                &token_handler,
+                &normalized_email,
+                &password,
+                &input.device_verification_code,
+                &device_identifier,
+            ))
+            .context("verify new device")?;
+        return Ok(LoginOutcome::Authenticated(Box::new(Session {
+            runtime,
+            client,
+            source: Source {
+                server: input.endpoints.vault_url.clone(),
+                email: normalized_email,
+            },
+            attachments: Mutex::new(HashMap::new()),
+            ciphers: Mutex::new(HashMap::new()),
+            views: Mutex::new(HashMap::new()),
+        })));
+    }
+    let response = match runtime.block_on(client.auth().login_password(&PasswordLoginRequest {
+        email: normalized_email.clone(),
+        password,
+        two_factor: (!input.totp.is_empty()).then(|| TwoFactorRequest {
+            token: input.totp.clone(),
+            provider: TwoFactorProvider::Authenticator,
+            remember: false,
+        }),
+    })) {
+        Ok(response) => response,
+        Err(LoginError::IdentityFail(response))
+            if response
+                .error_model
+                .to_string()
+                .eq_ignore_ascii_case("new device verification required") =>
+        {
+            return Ok(LoginOutcome::DeviceVerification(
+                response.error_model.to_string(),
+            ));
+        }
+        Err(error) => return Err(error).context("password login"),
+    };
 
     if let Some(providers) = response.two_factor {
         let mut available = Vec::new();
@@ -267,6 +338,130 @@ pub fn login(request: &[u8]) -> Result<LoginOutcome> {
         ciphers: Mutex::new(HashMap::new()),
         views: Mutex::new(HashMap::new()),
     })))
+}
+
+async fn login_new_device(
+    client: &Client,
+    token_handler: &bitwarden_auth::token_management::PasswordManagerTokenHandler,
+    email: &str,
+    password: &str,
+    code: &str,
+    device_identifier: &str,
+) -> Result<()> {
+    let kdf = client
+        .auth()
+        .prelogin(email.to_owned())
+        .await
+        .context("prelogin")?;
+    let authentication = MasterPasswordAuthenticationData::derive(password, &kdf, email)
+        .context("derive master password authentication")?;
+    let password_hash = Zeroizing::new(
+        authentication
+            .master_password_authentication_hash
+            .to_string(),
+    );
+    let request = NewDeviceVerificationRequest {
+        scope: "api offline_access",
+        client_id: "cli",
+        device_type: platform_device_type() as u8,
+        device_identifier,
+        device_name: platform_device_name(),
+        grant_type: "password",
+        username: email,
+        password: &password_hash,
+        new_device_otp: code,
+    };
+    let configurations = client.internal.get_api_configurations();
+    let body = Zeroizing::new(
+        submit_new_device_verification(
+            &configurations.identity_config.client,
+            &configurations.identity_config.base_path,
+            &request,
+        )
+        .await?,
+    );
+    let response: IdentitySuccessResponse =
+        serde_json::from_slice(&body).context("decode identity response")?;
+    let account_cryptographic_state = WrappedAccountCryptographicState::V1 {
+        private_key: response
+            .private_key
+            .parse::<EncString>()
+            .context("decode private key")?,
+    };
+    let decryption = UserDecryptionData::try_from(&response.user_decryption_options)
+        .context("decode user decryption options")?;
+    let master_password_unlock = decryption
+        .master_password_unlock
+        .context("identity response omitted master password unlock data")?;
+    let access_token: JwtToken = response
+        .access_token
+        .parse()
+        .context("decode access token")?;
+    let user_id = access_token
+        .sub
+        .parse::<UserId>()
+        .context("decode user ID from access token")?;
+    token_handler
+        .set_tokens(
+            response.access_token,
+            response.refresh_token,
+            response.expires_in,
+        )
+        .await;
+    client
+        .crypto()
+        .initialize_user_crypto(InitUserCryptoRequest {
+            user_id: Some(user_id),
+            kdf_params: kdf,
+            email: email.to_owned(),
+            account_cryptographic_state,
+            method: InitUserCryptoMethod::MasterPasswordUnlock {
+                password: password.to_owned(),
+                master_password_unlock,
+            },
+            upgrade_token: None,
+        })
+        .await
+        .context("initialize user cryptography")?;
+    Ok(())
+}
+
+async fn submit_new_device_verification(
+    client: &reqwest_middleware::ClientWithMiddleware,
+    identity_url: &str,
+    request: &NewDeviceVerificationRequest<'_>,
+) -> Result<Vec<u8>> {
+    let response = client
+        .post(format!(
+            "{}/connect/token",
+            identity_url.trim_end_matches('/')
+        ))
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded; charset=utf-8",
+        )
+        .header(reqwest::header::ACCEPT, "application/json")
+        .body(serde_qs::to_string(&request).context("encode identity request")?)
+        .send()
+        .await
+        .context("send identity request")?;
+    let status = response.status();
+    let body = response.bytes().await.context("read identity response")?;
+    if !status.is_success() {
+        let message = serde_json::from_slice::<Value>(&body)
+            .ok()
+            .and_then(|value| {
+                value
+                    .pointer("/ErrorModel/Message")
+                    .or_else(|| value.pointer("/errorModel/message"))
+                    .or_else(|| value.pointer("/error_description"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| format!("identity service returned HTTP {status}"));
+        bail!(message);
+    }
+    Ok(body.to_vec())
 }
 
 pub fn sync(session: &Session) -> Result<Vec<u8>> {
@@ -1428,6 +1623,16 @@ fn platform_device_type() -> DeviceType {
     }
 }
 
+fn platform_device_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+
 fn bitwarden_cli_user_agent() -> String {
     let platform = if cfg!(target_os = "windows") {
         "WINDOWS"
@@ -1442,11 +1647,105 @@ fn bitwarden_cli_user_agent() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        BITWARDEN_CLI_VERSION, MutationInput, attachment_download_request,
-        bitwarden_cli_user_agent, normalize_vaultwarden_response, normalize_vaultwarden_sync,
-        platform_device_type,
+        BITWARDEN_CLI_VERSION, MutationInput, NewDeviceVerificationRequest,
+        attachment_download_request, bitwarden_cli_user_agent, normalize_vaultwarden_response,
+        normalize_vaultwarden_sync, platform_device_name, platform_device_type,
+        submit_new_device_verification,
     };
     use serde_json::{Value, json};
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        thread,
+    };
+    use tokio::runtime::Runtime;
+
+    #[test]
+    fn encodes_new_device_verification_identity_request() {
+        let request = NewDeviceVerificationRequest {
+            scope: "api offline_access",
+            client_id: "cli",
+            device_type: platform_device_type() as u8,
+            device_identifier: "device",
+            device_name: platform_device_name(),
+            grant_type: "password",
+            username: "user@example.test",
+            password: "hash",
+            new_device_otp: "12 3+4",
+        };
+        let encoded = serde_qs::to_string(&request).unwrap();
+        assert!(encoded.contains("newDeviceOtp=12+3%2B4"));
+        assert!(encoded.contains("client_id=cli"));
+        assert!(encoded.contains("grant_type=password"));
+        assert!(!encoded.contains("clientId="));
+        assert!(!encoded.contains("grantType="));
+        assert!(encoded.contains(&format!("deviceType={}", platform_device_type() as u8)));
+        assert!(encoded.contains("deviceIdentifier=device"));
+        assert!(encoded.contains(&format!("deviceName={}", platform_device_name())));
+    }
+
+    #[test]
+    fn sends_new_device_otp_to_identity_token_endpoint() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut received = Vec::new();
+            loop {
+                let mut chunk = [0; 4096];
+                let count = stream.read(&mut chunk).unwrap();
+                if count == 0 {
+                    break;
+                }
+                received.extend_from_slice(&chunk[..count]);
+                let Some(header_end) = received.windows(4).position(|part| part == b"\r\n\r\n")
+                else {
+                    continue;
+                };
+                let headers = String::from_utf8_lossy(&received[..header_end]);
+                let content_length = headers
+                    .lines()
+                    .find_map(|line| {
+                        line.to_ascii_lowercase()
+                            .strip_prefix("content-length: ")
+                            .and_then(|value| value.parse::<usize>().ok())
+                    })
+                    .unwrap();
+                if received.len() >= header_end + 4 + content_length {
+                    break;
+                }
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .unwrap();
+            String::from_utf8(received).unwrap()
+        });
+        let request = NewDeviceVerificationRequest {
+            scope: "api offline_access",
+            client_id: "cli",
+            device_type: platform_device_type() as u8,
+            device_identifier: "device",
+            device_name: platform_device_name(),
+            grant_type: "password",
+            username: "user@example.test",
+            password: "hash",
+            new_device_otp: "123456",
+        };
+        let client = reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build();
+        let response = Runtime::new()
+            .unwrap()
+            .block_on(submit_new_device_verification(
+                &client,
+                &format!("http://{address}"),
+                &request,
+            ))
+            .unwrap();
+        assert_eq!(response, b"{}");
+        let received = server.join().unwrap();
+        assert!(received.starts_with("POST /connect/token HTTP/1.1\r\n"));
+        assert!(received.contains("client_id=cli"));
+        assert!(received.contains("newDeviceOtp=123456"));
+    }
 
     #[test]
     fn normalizes_legacy_cipher_data_objects_and_arrays() {

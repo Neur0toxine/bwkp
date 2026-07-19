@@ -27,10 +27,11 @@ type Endpoints struct {
 }
 
 type LoginRequest struct {
-	Endpoints      Endpoints `json:"endpoints"`
-	Email          string    `json:"email"`
-	MasterPassword []byte    `json:"masterPassword"`
-	TOTP           string    `json:"totp,omitzero"`
+	Endpoints              Endpoints `json:"endpoints"`
+	Email                  string    `json:"email"`
+	MasterPassword         []byte    `json:"masterPassword"`
+	TOTP                   string    `json:"totp,omitzero"`
+	DeviceVerificationCode string    `json:"deviceVerificationCode,omitzero"`
 }
 
 type TwoFactorRequiredError struct {
@@ -40,6 +41,12 @@ type TwoFactorRequiredError struct {
 func (e *TwoFactorRequiredError) Error() string {
 	return "two-factor authentication is required (available: " + strings.Join(e.Providers, ", ") + ")"
 }
+
+type DeviceVerificationRequiredError struct {
+	Message string
+}
+
+func (e *DeviceVerificationRequiredError) Error() string { return e.Message }
 
 type Client interface {
 	Login(context.Context, LoginRequest) (Session, error)

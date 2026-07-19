@@ -91,16 +91,53 @@ func TestExportStopsOnAttachmentFailure(t *testing.T) {
 	}
 }
 
+func TestExportHandlesDeviceVerificationThenTOTP(t *testing.T) {
+	client := &fakeClient{
+		session:                   &fakeSession{},
+		requireDeviceVerification: true,
+		requireTOTPAfterDevice:    true,
+	}
+	var warning string
+	_, err := New(client, convert.New(), &fakeWriter{}).Export(t.Context(), Request{
+		Login: bwapi.LoginRequest{MasterPassword: []byte("master")},
+		TOTP:  func(context.Context) (string, error) { return "654321", nil },
+		DeviceVerification: func(_ context.Context, message string) (string, error) {
+			warning = message
+			return "123456", nil
+		},
+		Output: "x", Credentials: kpdb.Credentials{Password: []byte("db")}, Options: kpdb.DefaultOptions(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.logins != 3 || client.lastDeviceVerificationCode != "123456" || client.lastTOTP != "654321" {
+		t.Fatalf("logins=%d device code=%q TOTP=%q", client.logins, client.lastDeviceVerificationCode, client.lastTOTP)
+	}
+	if warning != "new device verification required" {
+		t.Fatalf("warning = %q", warning)
+	}
+}
+
 type fakeClient struct {
-	session       bwapi.Session
-	logins        int
-	lastTOTP      string
-	authenticated bool
+	session                    bwapi.Session
+	logins                     int
+	lastTOTP                   string
+	lastDeviceVerificationCode string
+	authenticated              bool
+	requireDeviceVerification  bool
+	requireTOTPAfterDevice     bool
 }
 
 func (c *fakeClient) Login(_ context.Context, request bwapi.LoginRequest) (bwapi.Session, error) {
 	c.logins++
 	c.lastTOTP = request.TOTP
+	c.lastDeviceVerificationCode = request.DeviceVerificationCode
+	if c.requireDeviceVerification && request.DeviceVerificationCode == "" {
+		return nil, &bwapi.DeviceVerificationRequiredError{Message: "new device verification required"}
+	}
+	if c.requireTOTPAfterDevice && request.TOTP == "" {
+		return nil, &bwapi.TwoFactorRequiredError{Providers: []string{"authenticator"}}
+	}
 	if !c.authenticated && request.TOTP == "" {
 		return nil, &bwapi.TwoFactorRequiredError{Providers: []string{"authenticator"}}
 	}

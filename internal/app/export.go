@@ -20,6 +20,8 @@ type VaultConverter interface {
 
 type TOTPProvider func(context.Context) (string, error)
 
+type DeviceVerificationProvider func(context.Context, string) (string, error)
+
 type ProgressUpdate struct {
 	Stage         int
 	Stages        int
@@ -34,13 +36,14 @@ type ProgressReporter interface {
 }
 
 type Request struct {
-	Login       bwapi.LoginRequest
-	TOTP        TOTPProvider
-	Output      string
-	Force       bool
-	Credentials kpdb.Credentials
-	Options     kpdb.Options
-	Progress    ProgressReporter
+	Login              bwapi.LoginRequest
+	TOTP               TOTPProvider
+	DeviceVerification DeviceVerificationProvider
+	Output             string
+	Force              bool
+	Credentials        kpdb.Credentials
+	Options            kpdb.Options
+	Progress           ProgressReporter
 }
 
 type Exporter struct {
@@ -60,20 +63,9 @@ func (e *Exporter) Export(ctx context.Context, request Request) (report convert.
 	defer security.Clear(request.Login.MasterPassword)
 	defer security.Clear(request.Credentials.Password)
 
-	session, err := e.client.Login(ctx, request.Login)
-	if challenge, ok := errors.AsType[*bwapi.TwoFactorRequiredError](err); ok {
-		if request.TOTP == nil {
-			return report, challenge
-		}
-		code, promptErr := request.TOTP(ctx)
-		if promptErr != nil {
-			return report, fmt.Errorf("read TOTP: %w", promptErr)
-		}
-		request.Login.TOTP = code
-		session, err = e.client.Login(ctx, request.Login)
-	}
+	session, err := loginSession(ctx, e.client, request.Login, request.TOTP, request.DeviceVerification)
 	if err != nil {
-		return report, fmt.Errorf("log in: %w", err)
+		return report, err
 	}
 	defer func() { err = errors.Join(err, session.Close()) }()
 

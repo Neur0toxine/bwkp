@@ -39,12 +39,13 @@ type DatabaseConverter interface {
 }
 
 type ImportRequest struct {
-	Login       bwapi.LoginRequest
-	TOTP        TOTPProvider
-	Input       string
-	Credentials kpdb.Credentials
-	Conflict    ConflictMode
-	Progress    ProgressReporter
+	Login              bwapi.LoginRequest
+	TOTP               TOTPProvider
+	DeviceVerification DeviceVerificationProvider
+	Input              string
+	Credentials        kpdb.Credentials
+	Conflict           ConflictMode
+	Progress           ProgressReporter
 }
 
 type ImportResult struct {
@@ -93,7 +94,7 @@ func (i *Importer) Import(ctx context.Context, request ImportRequest) (result Im
 	result.Warnings = conversionReport.Warnings
 	reportProgress(request.Progress, ProgressUpdate{Stage: 1, Stages: 3, Description: "Reading encrypted database...", Completed: 1, Total: 1})
 
-	session, err := loginSession(ctx, i.client, request.Login, request.TOTP)
+	session, err := loginSession(ctx, i.client, request.Login, request.TOTP, request.DeviceVerification)
 	if err != nil {
 		return result, err
 	}
@@ -124,23 +125,36 @@ func (i *Importer) Import(ctx context.Context, request ImportRequest) (result Im
 	return result, nil
 }
 
-func loginSession(ctx context.Context, client bwapi.Client, request bwapi.LoginRequest, totp TOTPProvider) (bwapi.Session, error) {
-	session, err := client.Login(ctx, request)
-	if challenge, ok := errors.AsType[*bwapi.TwoFactorRequiredError](err); ok {
-		if totp == nil {
-			return nil, challenge
+func loginSession(ctx context.Context, client bwapi.Client, request bwapi.LoginRequest, totp TOTPProvider, deviceVerification DeviceVerificationProvider) (bwapi.Session, error) {
+	for {
+		session, err := client.Login(ctx, request)
+		if err == nil {
+			return session, nil
 		}
-		code, promptErr := totp(ctx)
-		if promptErr != nil {
-			return nil, fmt.Errorf("read TOTP: %w", promptErr)
+		if challenge, ok := errors.AsType[*bwapi.TwoFactorRequiredError](err); ok && request.TOTP == "" {
+			if totp == nil {
+				return nil, challenge
+			}
+			code, promptErr := totp(ctx)
+			if promptErr != nil {
+				return nil, fmt.Errorf("read TOTP: %w", promptErr)
+			}
+			request.TOTP = code
+			continue
 		}
-		request.TOTP = code
-		session, err = client.Login(ctx, request)
-	}
-	if err != nil {
+		if challenge, ok := errors.AsType[*bwapi.DeviceVerificationRequiredError](err); ok && request.DeviceVerificationCode == "" {
+			if deviceVerification == nil {
+				return nil, challenge
+			}
+			code, promptErr := deviceVerification(ctx, challenge.Message)
+			if promptErr != nil {
+				return nil, fmt.Errorf("read device verification code: %w", promptErr)
+			}
+			request.DeviceVerificationCode = code
+			continue
+		}
 		return nil, fmt.Errorf("log in: %w", err)
 	}
-	return session, nil
 }
 
 type importOperation struct {

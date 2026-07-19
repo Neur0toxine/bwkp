@@ -3,6 +3,10 @@
 `test:unit` runs race-enabled Go tests and Rust workspace tests. Conversion is
 table-driven and exercises hierarchy, fields, TOTP, passkeys, SSH keys,
 attachments, history, archive/trash, and deterministic output.
+Login tests cover typed two-factor and new-device challenges, including a
+new-device retry followed by authenticator 2FA. Rust tests verify the distinct
+`newDeviceOtp` identity parameter, the token endpoint's snake_case OAuth fields,
+CLI device metadata, and form encoding.
 
 `test:native` builds KeePassXC 2.7.12 and the Bitwarden SDK adapter, then runs
 Go with the `native` build tag. Its KDBX test writes and reopens through the

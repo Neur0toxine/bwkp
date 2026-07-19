@@ -35,8 +35,9 @@ flowchart LR
 - `pkg/dto/kp`: writer-neutral database tree.
 - `pkg/convert`: pure deterministic mapping; no I/O and no SDK dependency.
 - `pkg/kpdb`: database credentials plus reader and writer interfaces.
-- `native/bw`: Rust ownership of login, 2FA, sync, organization crypto, item
-  encryption/decryption, vault mutations, and attachment transfer/crypto.
+- `native/bw`: Rust ownership of login, 2FA and new-device verification, sync,
+  organization crypto, item encryption/decryption, vault mutations, and
+  attachment transfer/crypto.
 - `native/kpdb`: C++ ownership of KeePassXC object parsing/construction, KDF
   calibration, KDBX 4.1 writing, and authenticated reopen verification.
 - `native/ffi`: Rust C ABI for Bitwarden only.
@@ -56,8 +57,14 @@ sequenceDiagram
     participant KP as KeePassXC core
     User->>Go: export flags + secrets
     Go->>BW: password login
-    BW-->>Go: authenticated or authenticator required
-    Go->>BW: retry with TOTP, remember=false
+    BW-->>Go: authenticated or additional verification required
+    opt New-device email verification
+        Go-->>User: warning + verification-code prompt
+        Go->>BW: retry with newDeviceOtp
+    end
+    opt Authenticator 2FA
+        Go->>BW: retry with TOTP, remember=false
+    end
     Go->>BW: sync and decrypt snapshot
     Go->>BW: download/decrypt each attachment
     Go->>Go: deterministic DTO conversion
@@ -83,8 +90,14 @@ sequenceDiagram
     Go->>KP: decrypt and parse KDBX
     Go->>Go: deterministic conversion and conflict plan
     Go->>BW: password login
-    BW-->>Go: authenticated or authenticator required
-    Go->>BW: retry with TOTP, remember=false
+    BW-->>Go: authenticated or additional verification required
+    opt New-device email verification
+        Go-->>User: warning + verification-code prompt
+        Go->>BW: retry with newDeviceOtp
+    end
+    opt Authenticator 2FA
+        Go->>BW: retry with TOTP, remember=false
+    end
     Go->>BW: sync destination vault
     Go->>BW: create folders and mutate encrypted items
     Go->>BW: encrypt and upload attachments

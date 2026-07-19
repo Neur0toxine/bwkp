@@ -71,7 +71,9 @@ bwkp export --server https://vault.example.com --email alice@example.com --outpu
 ```
 
 Each invocation performs password login, requests an authenticator TOTP when
-the server requires it, synchronizes the complete vault, downloads and decrypts
+the server requires it, and handles Bitwarden new-device verification by
+warning that the extra check is required and prompting for the code sent to the
+login email. It then synchronizes the complete vault, downloads and decrypts
 attachments in memory, writes an encrypted candidate, reopens it through
 KeePassXC, then atomically installs the requested file. No session is reused.
 
