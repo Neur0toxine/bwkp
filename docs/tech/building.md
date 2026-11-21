@@ -177,8 +177,9 @@ go tool mage android:armv7
 go tool mage android:all
 ```
 
-Mage uses a digest-pinned Termux builder image with the NDK required by the
-pinned `termux-packages` revision. It checks out that revision into a temporary
+Mage prepares a digest-pinned Termux builder with the matching NDK and the
+SDK tools needed when Termux dependencies build from source. It checks out the
+pinned `termux-packages` revision into a temporary
 directory, copies the current non-ignored worktree into it, and invokes the
 official Termux package builder. Dependencies and toolchains are cached in a
 named container volume. The resulting Android API 24 executables are

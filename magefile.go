@@ -20,7 +20,7 @@ const golangCILintVersion = "v2.12.2"
 
 const (
 	termuxPackagesCommit = "c0294462552ec4a03633a11afd72fc903a550182"
-	termuxBuilderImage   = "ghcr.io/termux/package-builder@sha256:374fedda8d2ce7a8ab499735d39329301c4f2f18ea4411b3cf7c93d4668768ab"
+	termuxBuilderImage   = "bwkp-termux-builder"
 )
 
 var Default = Build
@@ -264,6 +264,9 @@ func (Android) All() { mg.Deps(Android.Arm64, Android.Armv7) }
 func buildAndroid(termuxArch, artifactArch string) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("Android builds require Docker in PATH: %w", err)
+	}
+	if err := sh.RunV("docker", "build", "--tag", termuxBuilderImage, "--file", "build/termux-builder.Dockerfile", "build/termux"); err != nil {
+		return fmt.Errorf("build Termux builder image: %w", err)
 	}
 	repository, err := os.MkdirTemp("", "bwkp-termux-packages-")
 	if err != nil {
