@@ -126,6 +126,9 @@ target_compile_definitions(keepassx_core PRIVATE
     QT_NO_EXCEPTIONS
     QT_STRICT_ITERATORS
 )
+if(WIN32)
+    target_compile_definitions(keepassx_core PRIVATE UNICODE _UNICODE)
+endif()
 target_compile_options(keepassx_core PRIVATE
     $<$<COMPILE_LANGUAGE:C,CXX>:-ffunction-sections>
     $<$<COMPILE_LANGUAGE:C,CXX>:-fdata-sections>
