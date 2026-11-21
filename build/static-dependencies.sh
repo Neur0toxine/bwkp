@@ -89,7 +89,10 @@ build_argon2() {
 }
 
 build_botan() {
-  [[ -f "$prefix/lib/libbotan-3.a" ]] && return
+  if [[ -f "$prefix/lib/libbotan-3.a" ]] &&
+      grep -q '^#define BOTAN_HAS_ARGON2 ' "$prefix/include/botan-3/botan/build.h"; then
+    return
+  fi
   fetch "Botan-$botan_version.tar.xz" \
     "https://botan.randombit.net/releases/Botan-$botan_version.tar.xz" \
     c1cd7152519f4188591fa4f6ddeb116bc1004491f5f3c58aa99b00582eb8a137
@@ -126,7 +129,7 @@ build_botan() {
   python3 configure.py --prefix="$prefix" --build-targets=static \
     --without-documentation --minimized-build \
     ${target[@]+"${target[@]}"} \
-    --enable-modules=aes,auto_rng,cbc,chacha,ctr,gcm,hmac,salsa20,sha2_32,sha2_64,system_rng,twofish
+    --enable-modules=aes,argon2,auto_rng,cbc,chacha,ctr,gcm,hmac,salsa20,sha2_32,sha2_64,system_rng,twofish
   make -j"$jobs"
   make install
   popd >/dev/null

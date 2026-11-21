@@ -157,6 +157,32 @@ func (environment *testEnvironment) generateCertificates(t *testing.T) {
 	}
 }
 
+// Newer Bitwarden identity responses omit the top-level password-reset flags.
+func omitLegacyPasswordResetFlags(response *http.Response) error {
+	if response.Request.URL.Path != "/identity/connect/token" || response.StatusCode != http.StatusOK {
+		return nil
+	}
+	var body map[string]json.RawMessage
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		return fmt.Errorf("decode test identity response: %w", err)
+	}
+	if err := response.Body.Close(); err != nil {
+		return err
+	}
+	delete(body, "ResetMasterPassword")
+	delete(body, "resetMasterPassword")
+	delete(body, "ForcePasswordReset")
+	delete(body, "forcePasswordReset")
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	response.Body = io.NopCloser(bytes.NewReader(encoded))
+	response.ContentLength = int64(len(encoded))
+	response.Header.Set("Content-Length", fmt.Sprint(len(encoded)))
+	return nil
+}
+
 func (environment *testEnvironment) startWAF(t *testing.T) {
 	t.Helper()
 
@@ -171,8 +197,17 @@ func (environment *testEnvironment) startWAF(t *testing.T) {
 		t.Fatalf("create WAF log: %v", err)
 	}
 	proxy.ErrorLog = log.New(wafLog, "", log.LstdFlags)
+	proxy.ModifyResponse = omitLegacyPasswordResetFlags
 
 	handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/fixture/identity/accounts/prelogin/password":
+			request.URL.Path = "/identity/accounts/prelogin/password"
+		case "/fixture/identity/connect/token":
+			response.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(response, `{"access_token":"fixture","expires_in":3600,"token_type":"Bearer","scope":"api offline_access"}`)
+			return
+		}
 		mutation := (request.Method == http.MethodPost || request.Method == http.MethodPut || request.Method == http.MethodDelete) &&
 			(strings.HasPrefix(request.URL.Path, "/api/ciphers") || strings.HasPrefix(request.URL.Path, "/api/folders"))
 		attachment := strings.HasPrefix(request.URL.Path, "/attachments/")

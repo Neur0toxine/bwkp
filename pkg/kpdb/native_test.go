@@ -15,7 +15,7 @@ import (
 )
 
 func TestNativeWriterProducesKeePassXCCompatibleDatabase(t *testing.T) {
-	if got := native.KeePassXCVersion(); got != "2.7.12" {
+	if got := native.KeePassXCVersion(); got != "2.8.0" {
 		t.Fatalf("unexpected linked KeePassXC version %q", got)
 	}
 	target := filepath.Join(t.TempDir(), "test.kdbx")
@@ -66,5 +66,17 @@ func TestNativeReaderRoundTripsKeePassXCData(t *testing.T) {
 	entry := read.Root.Groups[0].Entries[0]
 	if entry.UUID == "" || entry.Username != "alice" || entry.Password.Value != "secret" || !entry.Fields["Hidden"].Protected || !bytes.Equal(entry.Attachments[0].Content, []byte{0, 1, 2}) {
 		t.Fatalf("entry = %+v", entry)
+	}
+}
+
+func TestNativeReaderOpensLegacyArgon2Database(t *testing.T) {
+	// Created with KeePassXC 2.7.12 using Argon2id version 0x10.
+	path := filepath.Join("testdata", "argon2id-v16.kdbx")
+	database, err := kpdb.NewNativeReader().ReadFile(t.Context(), path, kpdb.Credentials{Password: []byte("test")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if database.Root.Name != "Legacy Argon2" {
+		t.Errorf("root group = %q, want Legacy Argon2", database.Root.Name)
 	}
 }

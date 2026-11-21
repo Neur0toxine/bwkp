@@ -8,7 +8,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bitwarden_api_api::models::{
     AttachmentRequestModel, CipherRequestModel, CipherResponseModel, FileUploadType,
-    UserDecryptionResponseModel,
+    ProfileOrganizationResponseModel, SyncResponseModel, UserDecryptionResponseModel,
 };
 use bitwarden_api_base::AuthRequired;
 use bitwarden_collections::collection::Collection;
@@ -25,13 +25,12 @@ use bitwarden_core::{
         crypto::{InitOrgCryptoRequest, InitUserCryptoMethod, InitUserCryptoRequest},
     },
 };
-use bitwarden_crypto::{EncString, IdentifyKey, UnsignedSharedKey};
-use bitwarden_sync::{SyncClientExt, SyncRequest};
+use bitwarden_crypto::{EncString, UnsignedSharedKey};
 use bitwarden_vault::{
     AttachmentView, BankAccountView, CardView, Cipher, CipherId, CipherRepromptType, CipherType,
-    CipherView, CipherViewType, DriversLicenseView, Fido2CredentialFullView, FieldView, Folder,
-    FolderAddEditRequest, FolderId, IdentityView, LoginUriView, LoginView, PassportView,
-    SecureNoteType, SecureNoteView, SshKeyView, VaultClientExt,
+    CipherView, CipherViewType, DriversLicenseView, EncryptMode, Fido2CredentialFullView,
+    FieldView, Folder, FolderAddEditRequest, FolderId, IdentityView, LoginUriView, LoginView,
+    PassportView, SecureNoteType, SecureNoteView, SshKeyView, VaultClientExt,
 };
 use chrono::{DateTime, Utc};
 use reqwest::multipart::{Form, Part};
@@ -71,7 +70,8 @@ impl reqwest_middleware::Middleware for SyncCompatibilityMiddleware {
         next: reqwest_middleware::Next<'_>,
     ) -> Result<reqwest::Response, reqwest_middleware::Error> {
         let path = request.url().path();
-        let normalize_response = path.ends_with("/sync") || path.contains("/ciphers");
+        let sync = path.ends_with("/sync");
+        let normalize_response = sync || path.contains("/ciphers");
         let response = next.run(request, extensions).await?;
         if !normalize_response || !response.status().is_success() {
             return Ok(response);
@@ -84,6 +84,9 @@ impl reqwest_middleware::Middleware for SyncCompatibilityMiddleware {
             return rebuild_response(status, version, headers, body.to_vec());
         };
         normalize_vaultwarden_response(&mut value);
+        if sync {
+            normalize_sync_organizations(&mut value);
+        }
         let body = serde_json::to_vec(&value).map_err(reqwest_middleware::Error::middleware)?;
         rebuild_response(status, version, headers, body)
     }
@@ -106,6 +109,38 @@ fn normalize_vaultwarden_sync(value: &mut Value) {
 fn normalize_vaultwarden_response(value: &mut Value) {
     normalize_nested_cipher_data(value);
     normalize_vaultwarden_sync(value);
+}
+
+fn normalize_sync_organizations(value: &mut Value) {
+    // SDK v4 reads this list from the profile. Older servers put it at the sync root.
+    let Some(root) = value.as_object_mut() else {
+        return;
+    };
+    let Some(organizations) = root
+        .remove("organizationsNew")
+        .or_else(|| root.remove("OrganizationsNew"))
+        .filter(Value::is_array)
+    else {
+        return;
+    };
+    let profile_key = if root.contains_key("Profile") {
+        "Profile"
+    } else {
+        "profile"
+    };
+    let profile = root.entry(profile_key).or_insert(Value::Null);
+    if profile.is_null() {
+        *profile = json!({});
+    }
+    if let Some(profile) = profile.as_object_mut()
+        && !profile
+            .get("organizationsNew")
+            .or_else(|| profile.get("OrganizationsNew"))
+            .is_some_and(Value::is_array)
+    {
+        profile.remove("OrganizationsNew");
+        profile.insert("organizationsNew".to_owned(), organizations);
+    }
 }
 
 fn normalize_nested_cipher_data(value: &mut Value) {
@@ -469,12 +504,11 @@ pub fn sync(session: &Session) -> Result<Vec<u8>> {
 }
 
 async fn sync_async(session: &Session) -> Result<Vec<u8>> {
-    let response = session
-        .client
-        .sync()
-        .sync(SyncRequest {
-            exclude_subdomains: None,
-        })
+    let configurations: Arc<bitwarden_core::client::ApiConfigurations> = session.client.get_part();
+    let response = configurations
+        .api_client
+        .sync_api()
+        .get(None)
         .await
         .context("request full sync")?;
     initialize_organizations(&session.client, &response).await?;
@@ -492,13 +526,8 @@ async fn sync_async(session: &Session) -> Result<Vec<u8>> {
         .and_then(|value| value.id)
         .map(|value| value.to_string())
         .unwrap_or_default();
-    let organization_models = response
-        .organizations_new
-        .as_ref()
-        .or_else(|| profile.and_then(|value| value.organizations.as_ref()));
-    let organizations: Vec<Value> = organization_models
-        .into_iter()
-        .flatten()
+    let organizations: Vec<Value> = organization_models(&response)
+        .iter()
         .filter_map(|organization| {
             Some(json!({
                 "id": organization.id?.to_string(),
@@ -552,6 +581,25 @@ async fn sync_async(session: &Session) -> Result<Vec<u8>> {
             .decrypt(encrypted.clone())
             .await
             .context("decrypt cipher")?;
+        if view.partial {
+            bail!("server returned a restricted view for cipher {:?}", view.id);
+        }
+        if let Some(credentials) = encrypted
+            .login
+            .as_ref()
+            .and_then(|login| login.fido2_credentials.as_ref())
+            && credentials.len()
+                > view
+                    .login
+                    .as_ref()
+                    .and_then(|login| login.fido2_credentials.as_ref())
+                    .map_or(0, Vec::len)
+        {
+            bail!(
+                "one or more passkeys failed to decrypt for cipher {:?}",
+                view.id
+            );
+        }
         if view
             .attachment_decryption_failures
             .as_ref()
@@ -574,8 +622,16 @@ async fn sync_async(session: &Session) -> Result<Vec<u8>> {
                 );
             }
         }
-        let mut value = serde_json::to_value(&view).context("serialize decrypted cipher")?;
-        normalize_cipher(&session.client, &view, &mut value)?;
+        let mut snapshot_view = view.clone();
+        // Keep the SDK's unwrapped keys and attachment URLs in the native session.
+        snapshot_view.key = None;
+        for attachment in snapshot_view.attachments.iter_mut().flatten() {
+            attachment.key = None;
+            attachment.url = None;
+        }
+        let mut value =
+            serde_json::to_value(snapshot_view).context("serialize decrypted cipher")?;
+        normalize_cipher(view.r#type, view.reprompt, &mut value)?;
         items.push(value);
         cipher_records.insert(item_id.clone(), encrypted);
         view_records.insert(item_id, view);
@@ -608,17 +664,22 @@ async fn sync_async(session: &Session) -> Result<Vec<u8>> {
     .context("encode decrypted vault snapshot")
 }
 
-async fn initialize_organizations(
-    client: &Client,
-    response: &bitwarden_api_api::models::SyncResponseModel,
-) -> Result<()> {
-    let profile = response.profile.as_deref();
-    let models = response
-        .organizations_new
-        .as_ref()
-        .or_else(|| profile.and_then(|value| value.organizations.as_ref()));
+fn organization_models(response: &SyncResponseModel) -> &[ProfileOrganizationResponseModel] {
+    response
+        .profile
+        .as_deref()
+        .and_then(|profile| {
+            profile
+                .organizations_new
+                .as_deref()
+                .or(profile.organizations.as_deref())
+        })
+        .unwrap_or_default()
+}
+
+async fn initialize_organizations(client: &Client, response: &SyncResponseModel) -> Result<()> {
     let mut organization_keys = HashMap::new();
-    for organization in models.into_iter().flatten() {
+    for organization in organization_models(response) {
         if let (Some(id), Some(key)) = (organization.id, organization.key.as_deref()) {
             organization_keys.insert(
                 OrganizationId::new(id),
@@ -634,8 +695,8 @@ async fn initialize_organizations(
 }
 
 fn normalize_cipher(
-    client: &Client,
-    view: &bitwarden_vault::CipherView,
+    cipher_kind: CipherType,
+    reprompt: CipherRepromptType,
     value: &mut Value,
 ) -> Result<()> {
     let object = value
@@ -643,27 +704,12 @@ fn normalize_cipher(
         .context("cipher did not serialize as an object")?;
     object.insert(
         "type".to_owned(),
-        Value::String(cipher_type(view.r#type).to_owned()),
+        Value::String(cipher_type(cipher_kind).to_owned()),
     );
     object.insert(
         "reprompt".to_owned(),
-        Value::Bool(view.reprompt == CipherRepromptType::Password),
+        Value::Bool(reprompt == CipherRepromptType::Password),
     );
-    if let Some(login) = object.get_mut("login").and_then(Value::as_object_mut)
-        && view
-            .login
-            .as_ref()
-            .and_then(|value| value.fido2_credentials.as_ref())
-            .is_some()
-    {
-        let credentials = view
-            .get_fido2_credentials(&mut client.internal.get_key_store().context())
-            .context("decrypt passkey credentials")?;
-        login.insert(
-            "fido2Credentials".to_owned(),
-            serde_json::to_value(credentials)?,
-        );
-    }
     if let Some(attachments) = object.get_mut("attachments").and_then(Value::as_array_mut) {
         for attachment in attachments {
             if let Some(object) = attachment.as_object_mut()
@@ -676,7 +722,7 @@ fn normalize_cipher(
             }
         }
     }
-    let data = match view.r#type {
+    let data = match cipher_kind {
         CipherType::BankAccount => object.get("bankAccount").cloned(),
         CipherType::DriversLicense => object.get("driversLicense").cloned(),
         CipherType::Passport => object.get("passport").cloned(),
@@ -941,11 +987,12 @@ async fn mutate_async(session: &Session, input: MutationInput) -> Result<Vec<u8>
             item_id,
             attachment_id,
         } => {
-            session
-                .client
-                .vault()
-                .ciphers()
-                .delete_attachment(item_id.parse()?, attachment_id)
+            let configurations: Arc<bitwarden_core::client::ApiConfigurations> =
+                session.client.get_part();
+            configurations
+                .api_client
+                .ciphers_api()
+                .delete_attachment(item_id.parse()?, &attachment_id)
                 .await
                 .context("delete attachment")?;
             Ok(b"{}".to_vec())
@@ -1005,6 +1052,7 @@ async fn create_import_item(
         local_data: None,
         attachments: None,
         attachment_decryption_failures: None,
+        partial: false,
         fields: Some(item.fields),
         password_history: None,
         creation_date: now,
@@ -1013,12 +1061,11 @@ async fn create_import_item(
         archived_date: None,
     };
     let key_store = session.client.internal.get_key_store();
-    let key = view.key_identifier();
-    view.generate_cipher_key(&mut key_store.context(), key)?;
+    view.upgrade_to_cipher_key_encryption(&mut key_store.context())?;
     if !credentials.is_empty() {
-        view.set_new_fido2_credentials(&mut key_store.context(), credentials)?;
+        view.set_new_fido2_credentials(credentials)?;
     }
-    let encrypted: Cipher = key_store.encrypt(view)?;
+    let encrypted: Cipher = key_store.encrypt(EncryptMode::Legacy(view))?;
     save_cipher(session, encrypted, None).await
 }
 
@@ -1058,6 +1105,7 @@ async fn update_import_item(
         local_data: existing_view.local_data,
         attachments: existing_view.attachments,
         attachment_decryption_failures: None,
+        partial: false,
         fields: Some(item.fields),
         password_history: existing_view.password_history,
         creation_date: existing_view.creation_date,
@@ -1067,9 +1115,9 @@ async fn update_import_item(
     };
     let key_store = session.client.internal.get_key_store();
     if !credentials.is_empty() {
-        view.set_new_fido2_credentials(&mut key_store.context(), credentials)?;
+        view.set_new_fido2_credentials(credentials)?;
     }
-    let encrypted: Cipher = key_store.encrypt(view)?;
+    let encrypted: Cipher = key_store.encrypt(EncryptMode::Legacy(view))?;
     save_cipher(session, encrypted, Some(existing_cipher)).await
 }
 
@@ -1355,7 +1403,7 @@ fn cache_view(session: &Session, view: CipherView) -> Result<()> {
         .client
         .internal
         .get_key_store()
-        .encrypt(view.clone())?;
+        .encrypt(EncryptMode::Legacy(view.clone()))?;
     session
         .ciphers
         .lock()
@@ -1372,7 +1420,6 @@ fn cache_view(session: &Session, view: CipherView) -> Result<()> {
 fn encode_item_result(view: &CipherView) -> Result<Vec<u8>> {
     serde_json::to_vec(&json!({
         "id": view.id.map(|value| value.to_string()).unwrap_or_default(),
-        "attachments": view.attachments,
     }))
     .context("encode mutated item")
 }
@@ -1526,12 +1573,12 @@ async fn upload_attachment_async(
         FileUploadType::__Unknown(value) => bail!("unsupported attachment upload type {value}"),
     };
     if let Err(error) = upload_result {
-        let rollback = session
-            .client
-            .vault()
-            .ciphers()
-            .delete_attachment(CipherId::new(item_id), attachment_id.clone())
-            .await;
+        let rollback = configurations
+            .api_client
+            .ciphers_api()
+            .delete_attachment(item_id, &attachment_id)
+            .await
+            .map(|_| ());
         return Err(error.context(format!("attachment rollback result: {rollback:?}")));
     }
     serde_json::to_vec(&json!({"id": attachment_id})).context("encode uploaded attachment")
@@ -1647,10 +1694,10 @@ fn bitwarden_cli_user_agent() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        BITWARDEN_CLI_VERSION, MutationInput, NewDeviceVerificationRequest,
-        attachment_download_request, bitwarden_cli_user_agent, normalize_vaultwarden_response,
-        normalize_vaultwarden_sync, platform_device_name, platform_device_type,
-        submit_new_device_verification,
+        BITWARDEN_CLI_VERSION, ImportItem, MutationInput, NewDeviceVerificationRequest,
+        attachment_download_request, bitwarden_cli_user_agent, import_view_type,
+        normalize_sync_organizations, normalize_vaultwarden_response, normalize_vaultwarden_sync,
+        platform_device_name, platform_device_type, submit_new_device_verification,
     };
     use serde_json::{Value, json};
     use std::{
@@ -1731,7 +1778,11 @@ mod tests {
             password: "hash",
             new_device_otp: "123456",
         };
-        let client = reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build();
+        let http = bitwarden_api_base::new_http_client_builder()
+            .https_only(false)
+            .build()
+            .unwrap();
+        let client = reqwest_middleware::ClientBuilder::new(http).build();
         let response = Runtime::new()
             .unwrap()
             .block_on(submit_new_device_verification(
@@ -1785,6 +1836,53 @@ mod tests {
             response["cipherResponse"]["data"],
             Value::String(r#"["one"]"#.to_owned())
         );
+    }
+
+    #[test]
+    fn preserves_organization_lists_across_sync_formats() {
+        let mut legacy = json!({
+            "OrganizationsNew": [{"Name": "Top-level organization"}],
+            "Profile": {"Organizations": [{"Name": "Fallback organization"}]}
+        });
+        normalize_sync_organizations(&mut legacy);
+        assert_eq!(
+            legacy["Profile"]["organizationsNew"],
+            json!([{"Name": "Top-level organization"}])
+        );
+
+        let mut modern = json!({
+            "organizationsNew": [{"name": "Top-level organization"}],
+            "profile": {"organizationsNew": []}
+        });
+        normalize_sync_organizations(&mut modern);
+        assert_eq!(modern["profile"]["organizationsNew"], json!([]));
+    }
+
+    #[test]
+    fn sdk_passkey_views_preserve_the_transfer_fields() {
+        let credential = json!({
+            "credentialId": "fixture-id",
+            "keyValue": "fixture-key",
+            "rpId": "example.test",
+            "userHandle": "fixture-user",
+            "counter": "7",
+            "discoverable": "true",
+            "creationDate": "2026-01-01T00:00:00Z",
+        });
+        let item: ImportItem = serde_json::from_value(json!({
+            "name": "Passkey",
+            "type": "login",
+            "login": {"fido2Credentials": [credential.clone()]},
+        }))
+        .unwrap();
+
+        let (_, credentials) = import_view_type(&item).unwrap();
+        let view =
+            bitwarden_vault::Fido2CredentialView::from(credentials.into_iter().next().unwrap());
+        let exported = serde_json::to_value(view).unwrap();
+        for (field, value) in credential.as_object().unwrap() {
+            assert_eq!(&exported[field], value);
+        }
     }
 
     #[test]
@@ -1845,7 +1943,7 @@ mod tests {
 
     #[test]
     fn attachment_download_uses_official_client_headers_without_credentials() {
-        let client = reqwest::Client::new();
+        let client = bitwarden_api_base::new_http_client();
         let request = attachment_download_request(
             &client,
             "https://vault.example/attachments/cipher/file?token=signed".to_owned(),

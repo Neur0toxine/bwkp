@@ -93,7 +93,9 @@ or future recovery purposes.
 By default, an item that cannot be converted stops the export. Add
 `--allow-lossy` to skip such items, print a warning for each one, and write the
 remaining items to the database. Authentication, synchronization, attachment,
-and KDBX write errors remain fatal.
+and KDBX write errors remain fatal. Export also stops if Bitwarden returns only
+a restricted view of an item, since the database would otherwise omit its
+protected fields.
 
 ## Import
 

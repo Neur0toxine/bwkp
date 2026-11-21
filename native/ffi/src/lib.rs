@@ -1,6 +1,6 @@
 use std::{ffi::c_char, panic::AssertUnwindSafe, slice};
 
-static BITWARDEN_SDK_VERSION: &[u8] = b"3.0.0 (7fd530e4852639d7391d062760891631ee9c15c1)\0";
+static BITWARDEN_SDK_VERSION: &[u8] = b"4.0.0 (b865d1db0025d9d12bea871a3a131c05aaeed205)\0";
 
 #[repr(C)]
 pub struct Buffer {
@@ -9,13 +9,10 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    fn from_vec(mut value: Vec<u8>) -> Self {
-        let result = Self {
-            ptr: value.as_mut_ptr(),
-            len: value.len(),
-        };
-        std::mem::forget(value);
-        result
+    fn from_vec(value: Vec<u8>) -> Self {
+        let len = value.len();
+        let ptr = Box::into_raw(value.into_boxed_slice()).cast();
+        Self { ptr, len }
     }
 }
 
@@ -39,7 +36,11 @@ unsafe fn set_error(output: *mut Buffer, error: impl std::fmt::Display) -> i32 {
 /// `buffer` must have been returned by this library and not freed previously.
 pub unsafe extern "C" fn bwkp_buffer_free(buffer: Buffer) {
     if !buffer.ptr.is_null() {
-        unsafe { drop(Vec::from_raw_parts(buffer.ptr, buffer.len, buffer.len)) };
+        unsafe {
+            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                buffer.ptr, buffer.len,
+            )))
+        };
     }
 }
 
@@ -204,6 +205,22 @@ pub unsafe extern "C" fn bwkp_upload_attachment(
 /// `handle` must be zero or a live session returned by `bwkp_login` and not previously closed.
 pub unsafe extern "C" fn bwkp_session_close(handle: usize) {
     if handle != 0 {
-        unsafe { drop(Box::from_raw(handle as *mut bwkp_bw::Session)) };
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| unsafe {
+            drop(Box::from_raw(handle as *mut bwkp_bw::Session));
+        }));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frees_a_buffer_with_spare_capacity() {
+        let mut value = Vec::with_capacity(128);
+        value.extend_from_slice(b"login error");
+        let buffer = Buffer::from_vec(value);
+        assert_eq!(unsafe { bytes(buffer.ptr, buffer.len) }, b"login error");
+        unsafe { bwkp_buffer_free(buffer) };
     }
 }

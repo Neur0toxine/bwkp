@@ -9,7 +9,7 @@ owns vault access and cryptography, and the pinned KeePassXC C++ core owns KDBX
 reading, writing, and verification.
 
 The repository targets Go 1.26.5, Rust 1.93.1 with edition 2024, C++20, and
-KeePassXC 2.7.12. Treat `go.mod`, `Cargo.toml`, `Cargo.lock`, and
+KeePassXC 2.8.0. Treat `go.mod`, `Cargo.toml`, `Cargo.lock`, and
 `native/kpdb/CMakeLists.txt` as the authoritative pins.
 
 ## Repository layout

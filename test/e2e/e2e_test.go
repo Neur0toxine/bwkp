@@ -25,6 +25,18 @@ func TestExportAndImport(t *testing.T) {
 	}
 
 	environment.seedVault(t)
+
+	t.Run("refresh-shaped reply returns a login error", func(t *testing.T) {
+		target := filepath.Join(t.TempDir(), "unexpected.kdbx")
+		output, err := environment.command(t, nil, nil, filepath.Join(environment.root, "dist", "bwkp"),
+			"export", "--server", environment.server, "--identity-url", environment.server+"/fixture/identity",
+			"--email", sourceEmail, "--output", target,
+			"--master-password-file", environment.masterFile, "--database-password-file", environment.databaseFile)
+		if err == nil || !strings.Contains(output, "native Bitwarden login panicked") || strings.Contains(output, "SIGABRT") {
+			t.Fatalf("expected a handled login error, got %v\n%s", err, output)
+		}
+	})
+
 	environment.enableTOTP(t)
 	database := environment.exportSource(t)
 	environment.addUnsupportedEntry(t, database)

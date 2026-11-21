@@ -8,9 +8,10 @@ new-device retry followed by authenticator 2FA. Rust tests verify the distinct
 `newDeviceOtp` identity parameter, the token endpoint's snake_case OAuth fields,
 CLI device metadata, and form encoding.
 
-`test:native` builds KeePassXC 2.7.12 and the Bitwarden SDK adapter, then runs
+`test:native` builds KeePassXC 2.8.0 and the Bitwarden SDK adapter, then runs
 Go with the `native` build tag. Its KDBX test writes and reopens through the
-linked core and independently invokes the installed KeePassXC CLI.
+linked core and independently invokes the installed KeePassXC CLI. A database
+written with Argon2id version 0x10 checks legacy KDBX compatibility.
 
 `test:e2e` starts a pinned Vaultwarden 1.36.0 compose project and registers
 isolated source and destination accounts. It exports login, note, card,
@@ -24,6 +25,10 @@ pinned Vaultwarden server does not accept them.
 The suite is a separate Go module under `test/e2e`. Its test cases run
 sequentially and use the Go testing lifecycle for disposable TLS certificates,
 the Compose service, the WAF fixture, command timeouts, and teardown.
+
+The identity fixture omits legacy password-reset flags from successful login
+responses and checks that a refresh-shaped reply produces a controlled error
+in the release binary.
 
 The server is fronted by a small WAF fixture which returns HTTP 401 when an
 attachment or mutation lacks the official Bitwarden CLI user-agent, client

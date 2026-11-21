@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 project(bwkp_kpdb LANGUAGES C CXX)
 
+set(KEEPASSXC_VERSION "2.8.0")
 include(FetchContent)
-
-set(KEEPASSXC_VERSION "2.7.12" CACHE STRING "Pinned KeePassXC compatibility version")
+set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/_deps/keepassxc-${KEEPASSXC_VERSION}")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
@@ -14,43 +14,41 @@ FetchContent_Declare(
     GIT_TAG "${KEEPASSXC_VERSION}"
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE
-    PATCH_COMMAND
-        "${CMAKE_COMMAND}"
-        -DANDROID_BUILD=${ANDROID}
-        -DSOURCE_DIR=<SOURCE_DIR>
-        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchKeePassXC.cmake"
+    SOURCE_SUBDIR bwkp-unused-subdirectory # Populate sources without configuring the desktop app.
 )
 
-# KeePassXC 2.7.12 does not expose its KDBX implementation as an independent
+# KeePassXC 2.8.0 does not expose its KDBX implementation as an independent
 # target. Populate the pinned source without configuring its GUI application,
 # then build only the source files used for KDBX reading and writing.
-if(POLICY CMP0169)
-    cmake_policy(SET CMP0169 OLD)
-endif()
-FetchContent_GetProperties(keepassxc)
-if(NOT keepassxc_POPULATED)
-    FetchContent_Populate(keepassxc)
-endif()
+FetchContent_MakeAvailable(keepassxc)
+execute_process(
+    COMMAND "${CMAKE_COMMAND}"
+        -DANDROID_BUILD=${ANDROID}
+        -DSOURCE_DIR=${keepassxc_SOURCE_DIR}
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchKeePassXC.cmake"
+    COMMAND_ERROR_IS_FATAL ANY
+)
 
 list(PREPEND CMAKE_MODULE_PATH "${keepassxc_SOURCE_DIR}/cmake")
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Concurrent)
+find_package(Qt5 5.15 REQUIRED COMPONENTS Core Concurrent)
 find_package(Botan REQUIRED)
 find_package(ZLIB REQUIRED)
 find_library(ARGON2_LIBRARY NAMES argon2 REQUIRED)
 find_path(ARGON2_INCLUDE_DIR NAMES argon2.h REQUIRED)
 
 if(BOTAN_VERSION VERSION_GREATER_EQUAL "3.0.0")
-    set(WITH_XC_BOTAN3 TRUE)
-elseif(BOTAN_VERSION VERSION_LESS "2.11.0")
-    message(FATAL_ERROR "Botan 2.11.0 or newer is required")
+    set(WITH_BOTAN3 TRUE)
+elseif(BOTAN_VERSION VERSION_LESS "2.19.1")
+    message(FATAL_ERROR "Botan 2.19.1 or newer is required")
 endif()
 
+set(KEEPASSXC_DIST_TYPE Native)
 set(KEEPASSXC_BUILD_TYPE Release)
 set(KEEPASSXC_BUILD_TYPE_RELEASE ON)
 set(PLUGIN_INSTALL_DIR "")
 set(DATA_INSTALL_DIR "")
 configure_file(
-    "${keepassxc_SOURCE_DIR}/src/config-keepassx.h.cmake"
+    "${keepassxc_SOURCE_DIR}/src/config-keepassx.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/config-keepassx.h"
 )
 set(git_info "#define GIT_HEAD \"\"\n#define GIT_BRANCH \"\"\n")
@@ -72,6 +70,7 @@ set(keepassx_kdbx_SOURCES
     core/Database.cpp
     core/Entry.cpp
     core/EntryAttachments.cpp
+    core/EntryPlaceholders.cpp
     core/EntryAttributes.cpp
     core/FileWatcher.cpp
     core/Group.cpp
@@ -106,8 +105,6 @@ set(keepassx_kdbx_SOURCES
     keys/CompositeKey.cpp
     keys/FileKey.cpp
     keys/PasswordKey.cpp
-    keys/drivers/YubiKey.h
-    keys/drivers/YubiKeyStub.cpp
     streams/HashedBlockStream.cpp
     streams/HashingStream.cpp
     streams/HmacBlockStream.cpp

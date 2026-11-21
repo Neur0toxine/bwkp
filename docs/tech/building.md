@@ -13,15 +13,16 @@ recorded in `go.mod` and does not require a separately installed `mage` binary.
   encryption, mutations, and attachment transfer.
 - `native/kpdb` populates the pinned KeePassXC source but compiles only its KDBX
   data model, crypto, key, stream, reader, and writer sources. The small project
-  patch removes GUI-only includes from that target; it does not replace any
-  KDBX behavior. KeePassXC remains the sole KDBX implementation.
+  patch keeps the headless target compatible with Qt 5. KeePassXC 2.8 uses
+  Botan for Argon2 version 0x13. The patch retains KeePassXC 2.7's
+  version-aware Argon2 derivation for older KDBX files.
 - Mage builds checksum-pinned static QtCore/QtConcurrent, Botan, Argon2, and
   zlib archives, then cgo links the complete native closure into the command.
   Qt GUI, Widgets, Network, DBus, SVG, minizip, and QRencode are not built or
   linked.
 
 The first build downloads Go modules, Cargo crates, the pinned Bitwarden SDK
-Git revision, KeePassXC 2.7.12, Qt 5.15.18, Botan 3.11.1, Argon2 20190702, and
+Git revision for Rust SDK 4.0.0, KeePassXC 2.8.0, Qt 5.15.18, Botan 3.11.1, Argon2 20190702, and
 zlib 1.3.1. Source archives are checksum verified and generated output is kept
 under `target/`. Subsequent builds reuse those inputs and archives. Network
 access and Git are therefore required for a clean build.

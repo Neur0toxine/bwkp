@@ -8,10 +8,10 @@ It is cross-platform and uses the upstream Bitwarden and KeePassXC components
 directly to maximize compatibility and avoid problems that third-party
 libraries can introduce:
 
-- Bitwarden access and decryption use the official Rust SDK 3.0.0, pinned to
+- Bitwarden access and decryption use the official Rust SDK 4.0.0, pinned to
   its commit. Requests use the official Bitwarden CLI 2026.6.0 client identity
   and platform-specific user agent.
-- KDBX reading, writing, and verification use the statically linked KeePassXC 2.7.12
+- KDBX reading, writing, and verification use the statically linked KeePassXC 2.8.0
   C++ core. There is no independent KDBX implementation.
 
 Run `bwkp version` to see both upstream versions compiled into a binary.

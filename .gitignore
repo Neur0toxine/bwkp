@@ -2,6 +2,7 @@
 /target/
 /test/e2e/.state/
 *.kdbx
+!/pkg/kpdb/testdata/argon2id-v16.kdbx
 .DS_Store
 .idea/
 .vscode/
