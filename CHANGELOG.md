@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Neur0toxine/bwkp/compare/v0.1.2...v0.1.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* broken export on newer Bitwarden version ([a5ee904](https://github.com/Neur0toxine/bwkp/commit/a5ee90407e6cbc0693a0a63f4f61665685c2431c))
+
 ## [0.1.2](https://github.com/Neur0toxine/bwkp/compare/v0.1.1...v0.1.2) (2026-07-19)
 
 
