@@ -177,12 +177,13 @@ go tool mage android:armv7
 go tool mage android:all
 ```
 
-Mage prepares a digest-pinned Termux builder with the matching NDK and the
-SDK tools needed when Termux dependencies build from source. It checks out the
-pinned `termux-packages` revision into a temporary
-directory, copies the current non-ignored worktree into it, and invokes the
-official Termux package builder. Dependencies and toolchains are cached in a
-named container volume. The resulting Android API 24 executables are
+Mage uses a digest-pinned Termux builder with the matching NDK. It checks out
+the pinned `termux-packages` revision into a temporary directory, copies the
+current non-ignored worktree into it, and invokes the official Termux package
+builder. The Android recipe uses the cross-compiler settings from that revision
+to build static QtCore and QtConcurrent. Only the Android IPC helper libraries
+are needed from the Termux package repository. Dependencies and toolchains are
+cached in a named container volume. The resulting Android API 24 executables are
 `dist/bwkp-android-arm64` and `dist/bwkp-android-armv7`. They are Bionic/Termux
 binaries, not general GNU/Linux ARM binaries or APKs.
 

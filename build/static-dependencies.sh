@@ -187,7 +187,7 @@ build_qt() {
   if [[ -n "${MSYSTEM:-}" ]]; then
     platform=(-platform win32-g++)
   elif [[ -n "${TERMUX_ARCH:-}" ]]; then
-    cp -R "$TERMUX_PREFIX/lib/qt/mkspecs/termux-cross" "$source/mkspecs/"
+    cp -R "$root/target/termux-cross" "$source/mkspecs/"
     if ! grep -q '^DEFINES += Q_OS_ANDROID_EMBEDDED$' "$source/mkspecs/termux-cross/qmake.conf"; then
       printf '\nDEFINES += Q_OS_ANDROID_EMBEDDED\n' >> "$source/mkspecs/termux-cross/qmake.conf"
     fi

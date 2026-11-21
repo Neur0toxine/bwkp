@@ -5,7 +5,7 @@ TERMUX_PKG_MAINTAINER="Neur0toxine"
 TERMUX_PKG_VERSION=${VERSION:-0.1.0}
 TERMUX_PKG_SRCURL=file:///home/builder/termux-packages/sources/bwkp
 TERMUX_PKG_SHA256=SKIP_CHECKSUM
-TERMUX_PKG_BUILD_DEPENDS="qt5-qtbase, qt5-qtbase-cross-tools"
+TERMUX_PKG_BUILD_DEPENDS="libandroid-posix-semaphore, libandroid-shmem"
 TERMUX_PKG_FORCE_CMAKE=true
 
 termux_step_pre_configure() {
@@ -18,6 +18,34 @@ termux_step_pre_configure() {
 
 	export BWKP_STATIC_PREFIX="$BWKP_SOURCE_ROOT/target/static"
 	export TERMUX_PREFIX
+
+	local mkspec="$BWKP_SOURCE_ROOT/target/termux-cross"
+	local qt_recipe="$TERMUX_SCRIPTDIR/x11-packages/qt5-qtbase"
+	local cflags="$CFLAGS" cxxflags="$CXXFLAGS"
+	if [[ "$TERMUX_ARCH" == arm ]]; then
+		cflags="${cflags/-mfpu=neon/} -mfpu=vfp"
+		cxxflags="${cxxflags/-mfpu=neon/} -mfpu=vfp"
+	fi
+	mkdir -p "$mkspec"
+	sed -e "/include\/glib-2\.0/d" -e "/lib\/glib-2\.0\/include/d" \
+		-e "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" \
+		-e "s|@TERMUX_CC@|$TERMUX_HOST_PLATFORM-clang|" \
+		-e "s|@TERMUX_CXX@|$TERMUX_HOST_PLATFORM-clang++|" \
+		-e "s|@TERMUX_AR@|llvm-ar|" \
+		-e "s|@TERMUX_NM@|llvm-nm|" \
+		-e "s|@TERMUX_OBJCOPY@|llvm-objcopy|" \
+		-e "s|@TERMUX_PKGCONFIG@|$TERMUX_HOST_PLATFORM-pkg-config|" \
+		-e "s|@TERMUX_STRIP@|llvm-strip|" \
+		-e "s|@TERMUX_CFLAGS@|$CPPFLAGS $cflags|" \
+		-e "s|@TERMUX_CXXFLAGS@|$CPPFLAGS $cxxflags|" \
+		-e "s|@TERMUX_LDFLAGS@|$LDFLAGS|" \
+		"$qt_recipe/qmake.conf" > "$mkspec/qmake.conf"
+	cat > "$mkspec/qplatformdefs.h" <<'QPLATFORMDEFS'
+#include "../android-clang/qplatformdefs.h"
+#define fseeko64 fseeko
+#define ftello64 ftello
+#define fopen64 fopen
+QPLATFORMDEFS
 	"$BWKP_SOURCE_ROOT/build/static-dependencies.sh"
 	export PKG_CONFIG_PATH="$BWKP_STATIC_PREFIX/lib/pkgconfig:$BWKP_STATIC_PREFIX/share/pkgconfig"
 	export CGO_LDFLAGS="-L$BWKP_STATIC_PREFIX/lib -lqtpcre2 -lz -lc++_static -lc++abi -lunwind -latomic -llog -ldl -lm"
