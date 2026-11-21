@@ -18,7 +18,10 @@ import (
 
 const golangCILintVersion = "v2.12.2"
 
-const termuxPackagesCommit = "c0294462552ec4a03633a11afd72fc903a550182"
+const (
+	termuxPackagesCommit = "c0294462552ec4a03633a11afd72fc903a550182"
+	termuxBuilderImage   = "ghcr.io/termux/package-builder@sha256:374fedda8d2ce7a8ab499735d39329301c4f2f18ea4411b3cf7c93d4668768ab"
+)
 
 var Default = Build
 
@@ -388,6 +391,7 @@ func runTermuxBuilder(repository, containerName, termuxArch string, podman bool)
 			cacheMount = "--tmpfs /home/builder/.termux-build:exec,mode=1777"
 		}
 		environment := map[string]string{
+			"TERMUX_BUILDER_IMAGE_NAME":                         termuxBuilderImage,
 			"CONTAINER_NAME":                                    containerName,
 			"TERMUX_DOCKER_RUN_EXTRA_ARGS":                      cacheMount,
 			"TERMUX_DOCKER_EXEC_EXTRA_ARGS":                     "--env VERSION --env COMMIT --env BUILD_DATE",
@@ -421,7 +425,7 @@ func runTermuxBuilder(repository, containerName, termuxArch string, podman bool)
 		"--user=0:0",
 		"--env", "HOME=/home/builder", "--env", "CI=true", "--env", "VERSION", "--env", "COMMIT", "--env", "BUILD_DATE",
 		"--mount", "type=tmpfs,destination=/data,tmpfs-mode=0777",
-		"ghcr.io/termux/package-builder", "./build-package.sh", "-a", termuxArch, "-I", "bwkp",
+		termuxBuilderImage, "./build-package.sh", "-a", termuxArch, "-I", "bwkp",
 	}
 	return sh.RunWithV(map[string]string{"TERMUX_PKG_MAKE_PROCESSES": strconv.Itoa(runtime.NumCPU())}, "docker", arguments...)
 }

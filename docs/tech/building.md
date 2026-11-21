@@ -60,10 +60,10 @@ brew install cmake pkgconf
 Windows releases use MSYS2's MINGW32, MINGW64, and CLANGARM64 environments for
 32-bit x86, x86-64, and ARM64 respectively. Install the matching prefixed
 toolchain, CMake, Ninja, and Python packages, then set `GOARCH`, `CC`, `CXX`,
-and `CARGO_BUILD_TARGET` as shown in the release workflow. MINGW64 and
-CLANGARM64 use MSYS2's `qt5-static` package; Mage source-builds the reduced Qt
-target for MINGW32, where that package is unavailable. Botan, Argon2, and zlib
-are source-built for all three targets.
+and `CARGO_BUILD_TARGET` as shown in the release workflow. CLANGARM64 uses
+MSYS2's `qt5-static` package. Mage builds the reduced Qt target from source
+on MINGW32 and MINGW64. Botan, Argon2, and zlib are source-built for all
+three targets.
 
 Run Windows builds from the matching MSYS2 shell. The architecture settings are:
 
@@ -177,7 +177,8 @@ go tool mage android:armv7
 go tool mage android:all
 ```
 
-Mage checks out the pinned `termux-packages` revision into a temporary
+Mage uses a digest-pinned Termux builder image with the NDK required by the
+pinned `termux-packages` revision. It checks out that revision into a temporary
 directory, copies the current non-ignored worktree into it, and invokes the
 official Termux package builder. Dependencies and toolchains are cached in a
 named container volume. The resulting Android API 24 executables are

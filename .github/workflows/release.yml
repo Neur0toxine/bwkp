@@ -108,7 +108,7 @@ jobs:
             cxx: g++
             packages: >-
               mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
-              mingw-w64-x86_64-python mingw-w64-x86_64-qt5-static
+              mingw-w64-x86_64-python
           - runner: windows-11-arm
             target: windows-arm64
             goarch: arm64
