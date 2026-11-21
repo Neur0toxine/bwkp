@@ -98,6 +98,12 @@ build_botan() {
     c1cd7152519f4188591fa4f6ddeb116bc1004491f5f3c58aa99b00582eb8a137
   local source="$sources/Botan-$botan_version"
   extract "$downloads/Botan-$botan_version.tar.xz" "$source" configure.py
+  # Botan 3.11.1 uses std::fill here. Include its declaration explicitly
+  # for libc++ toolchains that do not expose it through another header.
+  if ! grep -q '^#include <algorithm>' "$source/src/lib/base/secmem.h"; then
+    sed -i.bwkp 's/^#include <span>/#include <algorithm>\n#include <span>/' "$source/src/lib/base/secmem.h"
+    rm -f "$source/src/lib/base/secmem.h.bwkp"
+  fi
   # LLVM's MinGW ARM64 libc++ advertises pthread-backed std::thread without
   # providing pthread_setname_np. Thread naming is optional, so skip that path.
   if ! grep -q '_LIBCPP_HAS_THREAD_API_PTHREAD.*!defined(__MINGW32__)' "$source/src/lib/utils/os_utils/os_utils.cpp"; then
