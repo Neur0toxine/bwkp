@@ -113,6 +113,7 @@ jobs:
           dist/bwkp version
           otool -L dist/bwkp
           brew tap Neur0toxine/bwkp "$GITHUB_WORKSPACE"
+          brew trust --cask Neur0toxine/bwkp/bwkp
           brew audit --strict --cask Neur0toxine/bwkp/bwkp
 
   windows:
