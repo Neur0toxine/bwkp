@@ -2,6 +2,12 @@ name: Release Artifacts
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build.
+        required: true
+        type: string
   workflow_call:
     inputs:
       tag:
@@ -19,15 +25,19 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-        with: {ref: "${{ env.RELEASE_TAG }}"}
-      - name: Create a draft release when the tag was pushed manually
+        with: {ref: "refs/tags/${{ env.RELEASE_TAG }}"}
+      - name: Prepare the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            exit 0
+          if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft); then
+            if [[ "$draft" != true ]]; then
+              echo "::error::Release $RELEASE_TAG is already published"
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "$RELEASE_TAG"
           fi
-          gh release create "$RELEASE_TAG" --draft --generate-notes --title "$RELEASE_TAG"
 
   build:
     needs: prepare
@@ -45,7 +55,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
-        with: {ref: "${{ env.RELEASE_TAG }}"}
+        with: {ref: "refs/tags/${{ env.RELEASE_TAG }}"}
       - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
@@ -72,17 +82,18 @@ jobs:
             export GOOS=linux GOARCH=386 CARGO_BUILD_TARGET=i686-unknown-linux-gnu
             export CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32
           fi
-          VERSION="${RELEASE_TAG#v}" COMMIT="$GITHUB_SHA" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage ${{ matrix.mage-target }}
+          VERSION="${RELEASE_TAG#v}" COMMIT="$(git rev-parse HEAD)" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage ${{ matrix.mage-target }}
           mkdir package
           cp "dist/${{ matrix.binary }}" package/bwkp
           cp README.md LICENSE.md package/
           tar -C package -czf "bwkp_${RELEASE_TAG}_${{ matrix.target }}.tar.gz" .
       - uses: actions/attest-build-provenance@v2
         with: {subject-path: "bwkp_*.tar.gz"}
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: "bwkp_*.tar.gz"
+      - name: Upload archive to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" "bwkp_${RELEASE_TAG}_${{ matrix.target }}.tar.gz" --clobber
 
   build-windows:
     needs: prepare
@@ -122,7 +133,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
-        with: {ref: "${{ env.RELEASE_TAG }}"}
+        with: {ref: "refs/tags/${{ env.RELEASE_TAG }}"}
       - uses: actions/setup-go@v7
         with: {go-version-file: go.mod, cache: true}
       - uses: dtolnay/rust-toolchain@stable
@@ -141,9 +152,8 @@ jobs:
           CXX: ${{ matrix.cxx }}
           CARGO_BUILD_TARGET: ${{ matrix.rust-target }}
           VERSION: ${{ env.RELEASE_TAG }}
-          COMMIT: ${{ github.sha }}
         run: |
-          VERSION="${VERSION#v}" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage build
+          VERSION="${VERSION#v}" COMMIT="$(git rev-parse HEAD)" BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" go tool mage build
           mkdir package
           cp dist/bwkp.exe package/
           cp README.md LICENSE.md package/
@@ -152,10 +162,11 @@ jobs:
           package/bwkp.exe version
       - uses: actions/attest-build-provenance@v2
         with: {subject-path: "bwkp_*.tar.gz"}
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: "bwkp_*.tar.gz"
+      - name: Upload archive to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" "bwkp_${RELEASE_TAG}_${{ matrix.target }}.tar.gz" --clobber
 
   checksums:
     needs: [build, build-windows]
@@ -163,13 +174,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: {ref: master}
-      - uses: robinraju/release-downloader@v1
-        with: {tag: "${{ env.RELEASE_TAG }}", fileName: "bwkp_*.tar.gz"}
-      - run: sha256sum bwkp_*.tar.gz > SHA256SUMS
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: SHA256SUMS
+      - name: Verify all archives and attach checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$RELEASE_TAG" --pattern "bwkp_${RELEASE_TAG}_*.tar.gz"
+          targets=(
+            android-arm64 android-armv7
+            linux-amd64 linux-arm64 linux-i686
+            macos-amd64 macos-arm64
+            windows-386 windows-amd64 windows-arm64
+          )
+          archives=()
+          for target in "${targets[@]}"; do
+            archives+=("bwkp_${RELEASE_TAG}_${target}.tar.gz")
+          done
+          sha256sum "${archives[@]}" > SHA256SUMS
+          gh release upload "$RELEASE_TAG" SHA256SUMS --clobber
       - name: Update Homebrew cask
         env:
           VERSION: ${{ env.RELEASE_TAG }}

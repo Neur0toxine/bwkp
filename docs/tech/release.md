@@ -94,10 +94,14 @@ Conventional commits merged to master
 Merging ordinary feature or fix pull requests does not immediately produce an
 artifact release; it updates the pending release PR. Merging the release PR is
 the maintainer's release trigger. The Actions UI can re-run a failed artifact
-job for the same draft release. A manually pushed `v*` tag uses the same build
-workflow and creates a draft release before building; reserve that path for
-recovery because it bypasses the version and changelog state managed by
-release-please.
+job for the same draft release. If recovery needs a workflow fix, run Release
+Artifacts from `master` and enter the existing tag. The workflow checks out
+that tag for each build and publishes after attaching checksums and updating
+the Homebrew cask.
+
+A manually pushed `v*` tag also uses this workflow and creates a draft release
+before building. Reserve that path for recovery because it bypasses the
+version and changelog state managed by release-please.
 
 The workflows require repository permission to create pull requests, tags,
 releases, attestations, and release assets. If release-please stops updating its
